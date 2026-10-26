@@ -1,0 +1,74 @@
+name: Refresh data and deploy
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test -- --run
+      - run: npm run collect
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Collector report" >> $GITHUB_STEP_SUMMARY
+          cat reports/match-report.md >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Window: $(node -e "console.log(require('./public/data/usage.json').window.end)")" >> $GITHUB_STEP_SUMMARY
+      - name: Compute base path
+        id: base
+        run: |
+          REPO="${GITHUB_REPOSITORY#*/}"
+          if [[ "$REPO" == *.github.io ]]; then echo "path=/" >> $GITHUB_OUTPUT; else echo "path=/$REPO/" >> $GITHUB_OUTPUT; fi
+      - run: npm run build
+        env:
+          BASE_PATH: ${{ steps.base.outputs.path }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - name: Daily heartbeat commit
+        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main'
+        continue-on-error: true
+        run: |
+          TODAY=$(date -u +%F)
+          if git log --since="24 hours" --oneline -- data/last-refresh.json | grep -q .; then echo "heartbeat already committed"; exit 0; fi
+          mkdir -p data
+          node -e "const fs=require('fs');fs.writeFileSync('data/last-refresh.json',JSON.stringify({date:'$TODAY',generatedAt:new Date().toISOString(),sourceAsOf:require('./public/data/usage.json').window.end},null,2)+'\n')"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/last-refresh.json
+          git commit -m "chore: daily refresh heartbeat [skip ci]" || exit 0
+          git push
+
+  deploy:
+    needs: refresh
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
