@@ -4,34 +4,33 @@ import { fmtTokens } from '../lib/format';
 export default function Methodology({ data }: { data: DataFile }) {
   const m = data.match;
   return (
-    <section id="methodology" className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
-      <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Methodology</h2>
-      <div className="prose-sm mt-2 grid gap-4 text-[13px] text-neutral-600 md:grid-cols-2 dark:text-neutral-300">
+    <section id="methodology" aria-label="Methodology" className="border-t border-(--ink) pt-3">
+      <h2 className="text-[13px] font-semibold">Methodology</h2>
+      <div className="mt-2 grid gap-6 text-[12.5px] leading-relaxed text-(--ink-soft) md:grid-cols-2">
         <div>
-          <h3 className="font-medium text-neutral-900 dark:text-neutral-100">Sources</h3>
-          <ul className="list-disc pl-5">
-            <li>OpenCode: <a className="text-teal-600 hover:underline" href="https://opencode.ai/data/">opencode.ai/data</a> — hourly index, lab pages, and model detail JSON. Updated {data.window.opencodeUpdatedAt}.</li>
-            <li>OpenRouter: <a className="text-violet-600 hover:underline" href="https://openrouter.ai/rankings">openrouter.ai/rankings</a> public rankings endpoint (day/week/month, excl. BYOK). Through {data.window.openrouterAsOf}.</li>
-            <li>Model catalog + prices from OpenRouter <code>/api/v1/models</code>.</li>
+          <h3 className="text-[12px] font-semibold text-(--ink)">Sources</h3>
+          <ul className="mt-1 list-disc pl-5">
+            <li>OpenCode: <a className="text-(--oc) underline-offset-2 hover:underline" href="https://opencode.ai/data/">opencode.ai/data</a> — hourly index, lab pages, model detail JSON. Updated {data.window.opencodeUpdatedAt}.</li>
+            <li>OpenRouter: <a className="text-(--or) underline-offset-2 hover:underline" href="https://openrouter.ai/rankings">openrouter.ai/rankings</a> public rankings endpoint (day/week/month, excl. BYOK). Through {data.window.openrouterAsOf}.</li>
+            <li>Model catalog and prices from OpenRouter <span className="num">/api/v1/models</span>.</li>
           </ul>
-          <h3 className="mt-3 font-medium text-neutral-900 dark:text-neutral-100">Windows</h3>
-          <p>All windows use complete UTC days ending {data.window.end}: 1d = {data.window.day}, 7d = {data.window.weekStart} → {data.window.end}, 30d = {data.window.monthStart} → {data.window.end}. Today's partial OpenCode day is excluded so both sources line up.</p>
+          <h3 className="mt-3 text-[12px] font-semibold text-(--ink)">Windows</h3>
+          <p className="mt-1">Complete UTC days ending {data.window.end}: 1d is {data.window.day}, 7d is {data.window.weekStart} – {data.window.end}, 30d is {data.window.monthStart} – {data.window.end}. The partial current day is excluded so both sources line up.</p>
         </div>
         <div>
-          <h3 className="font-medium text-neutral-900 dark:text-neutral-100">Matching</h3>
-          <p>{m.matchedGroups} matched groups · {m.opencodeOnlyGroups} OpenCode-only · {m.openrouterOnlyModels} OpenRouter-only. OpenRouter token coverage: {m.openrouterTokenCoverage.week?.toFixed(1)}% (week). OpenCode coverage: {m.opencodeTokenCoverage.week?.toFixed(1)}%.</p>
-          <p className="mt-1">Provider aliases (z-ai → zhipuai, qwen → alibaba, …), date-aware version matching, contributor/variant grouping, and an explicit alias map. Unmatched usage stays visible as single-source rows — nothing is hidden.</p>
-          <h3 className="mt-3 font-medium text-neutral-900 dark:text-neutral-100">Caveats</h3>
-          <ul className="list-disc pl-5">
+          <h3 className="text-[12px] font-semibold text-(--ink)">Matching</h3>
+          <p className="mt-1">{m.matchedGroups} matched groups · {m.opencodeOnlyGroups} OpenCode-only · {m.openrouterOnlyModels} OpenRouter-only. OpenRouter token coverage {m.openrouterTokenCoverage.week?.toFixed(1)}% (7d). OpenCode coverage {m.opencodeTokenCoverage.week?.toFixed(1)}%.</p>
+          <p className="mt-1">Provider aliases (z-ai → zhipuai, qwen → alibaba, …), date-aware version matching, contributor/variant grouping, and an explicit alias map. Unmatched usage stays visible as single-source rows.</p>
+          <h3 className="mt-3 text-[12px] font-semibold text-(--ink)">Caveats</h3>
+          <ul className="mt-1 list-disc pl-5">
             <li>Tokenizers differ by provider — counts are not directly comparable across models.</li>
-            <li>OpenRouter excludes BYOK traffic; OpenCode includes cached/reasoning tokens.</li>
-            <li>Shares are per-ecosystem; never add the two totals ({fmtTokens(data.totals.opencode.week)} vs {fmtTokens(data.totals.openrouter.week)}).</li>
-            <li>OpenRouter-only names not on OpenCode link to their ranking page, not a model page.</li>
+            <li>OpenRouter excludes BYOK traffic; OpenCode includes cached and reasoning tokens.</li>
+            <li>Shares are per ecosystem; never add the two totals ({fmtTokens(data.totals.opencode.week)} vs {fmtTokens(data.totals.openrouter.week)}).</li>
           </ul>
         </div>
       </div>
       {(m.warnings.length > 0 || m.unmatchedTop.length > 0) && (
-        <details className="mt-3 text-xs text-neutral-500">
+        <details className="mt-3 text-[12px] text-(--muted)">
           <summary className="cursor-pointer">Collector notes ({m.warnings.length} warnings · top unmatched)</summary>
           <ul className="mt-1 list-disc pl-5">
             {m.warnings.slice(0, 10).map((w, i) => <li key={i}>{w}</li>)}

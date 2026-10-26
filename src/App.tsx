@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Header from './components/Header';
+import Lede from './components/Lede';
 import StaleBanner from './components/StaleBanner';
-import KpiCards from './components/KpiCards';
+import StatsStrip from './components/StatsStrip';
 import MetricToggle from './components/MetricToggle';
 import ShareScatter from './components/ShareScatter';
 import LabMix from './components/LabMix';
@@ -15,10 +16,44 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { useData } from './hooks/useData';
 import { useDebounced } from './hooks/useUI';
 import { DEFAULT_STATE, parseState, serializeState, type DashboardState } from './lib/urlState';
-import { tokensOf } from './lib/derive';
-import { modalityOf } from './lib/derive';
+import { fmtDateUTC } from './lib/format';
 
 const PER_PAGE = 100;
+
+function Rail({ generatedAt, windowEnd, ocUpdated, orAsOf }: { generatedAt: string; windowEnd: string; ocUpdated: string; orAsOf: string }) {
+  return (
+    <aside className="hidden w-60 shrink-0 lg:block" aria-label="About this index">
+      <div className="sticky top-6 space-y-5 text-[12px]">
+        <div>
+          <h2 className="text-[11px] text-(--muted)">Window</h2>
+          <p className="num mt-0.5">{windowEnd}</p>
+          <p className="num mt-0.5 text-(--muted)">complete UTC days</p>
+        </div>
+        <div>
+          <h2 className="text-[11px] text-(--muted)">Sources</h2>
+          <p className="mt-0.5"><a className="text-(--oc) underline-offset-2 hover:underline" href="https://opencode.ai/data/">OpenCode Data</a></p>
+          <p className="num mt-0.5 text-(--muted)">{ocUpdated.slice(0, 16).replace('T', ' ')} UTC</p>
+          <p className="mt-1.5"><a className="text-(--or) underline-offset-2 hover:underline" href="https://openrouter.ai/rankings">OpenRouter rankings</a></p>
+          <p className="num mt-0.5 text-(--muted)">through {orAsOf}</p>
+        </div>
+        <nav aria-label="Contents">
+          <h2 className="text-[11px] text-(--muted)">Contents</h2>
+          <ul className="mt-0.5 space-y-1">
+            {[['Overview', '#overview'], ['Models', '#models'], ['Methodology', '#methodology']].map(([label, href]) => (
+              <li key={href}><a href={href} className="underline-offset-2 hover:underline">{label}</a></li>
+            ))}
+          </ul>
+        </nav>
+        <div>
+          <h2 className="text-[11px] text-(--muted)">Data</h2>
+          <p className="mt-0.5"><a className="underline-offset-2 hover:underline" href={`${import.meta.env.BASE_URL}data/usage.json`} download>Download JSON</a></p>
+          <p className="mt-0.5"><a className="underline-offset-2 hover:underline" href="https://github.com/JasonXiao127/token-usage">GitHub</a></p>
+          <p className="num mt-1 text-(--muted)" title={generatedAt}>fetched {fmtDateUTC(generatedAt)}</p>
+        </div>
+      </div>
+    </aside>
+  );
+}
 
 export default function App() {
   const { data, error, loading } = useData();
@@ -27,11 +62,9 @@ export default function App() {
 
   useEffect(() => {
     const s = serializeState(state);
-    const url = window.location.pathname + s + window.location.hash;
-    window.history.replaceState(null, '', url);
+    window.history.replaceState(null, '', window.location.pathname + s + window.location.hash);
   }, [state]);
 
-  // open drawer via ?model=
   useEffect(() => {
     const onPop = () => setState((s) => ({ ...s, model: parseState(window.location.search).model }));
     window.addEventListener('popstate', onPop);
@@ -49,21 +82,16 @@ export default function App() {
       if (state.hasUsage && !state.showAll) {
         const has = (m.opencode?.tokens[state.metric] ?? 0) > 0 || (m.openrouter?.tokens[state.metric] ?? 0) > 0;
         if (!has) return false;
-      } else if (state.hasUsage && state.showAll) {
-        // showAll overrides hasUsage filter
       } else if (!state.hasUsage && !state.showAll) {
         const has = (m.opencode?.tokens[state.metric] ?? 0) > 0 || (m.openrouter?.tokens[state.metric] ?? 0) > 0;
         if (has) return false;
       }
       if (ql && !(m.name.toLowerCase().includes(ql) || m.key.toLowerCase().includes(ql) || m.labName.toLowerCase().includes(ql) || m.lab.toLowerCase().includes(ql))) return false;
-      void modalityOf;
       return true;
     });
   }, [data, q, state.lab, state.status, state.hasUsage, state.showAll, state.metric]);
 
   const sorted = useMemo(() => sortModels(filtered, state.sort, state.dir, state.metric), [filtered, state.sort, state.dir, state.metric]);
-  const totalOcWeek = useMemo(() => data?.models.reduce((s, m) => s + (m.opencode?.tokens.week || 0), 0) ?? 0, [data]);
-  void totalOcWeek;
 
   const openModel = data?.models.find((m) => m.key === state.model) || null;
 
@@ -72,57 +100,57 @@ export default function App() {
     window.history.pushState(null, '', window.location.pathname + serializeState({ ...state, model: key }));
   };
 
+  void DEFAULT_STATE;
+
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+      <div className="min-h-screen bg-(--paper) text-(--ink)">
         {data && <Header generatedAt={data.generatedAt} windowEnd={data.window.end} ocUpdated={data.window.opencodeUpdatedAt} orAsOf={data.window.openrouterAsOf} />}
-        <main className="mx-auto max-w-[1400px] space-y-4 px-4 py-4 sm:px-6">
-          {loading && (
-            <div className="space-y-3" aria-label="Loading">
-              {[0, 1, 2].map((i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-neutral-200 dark:bg-neutral-800" />)}
-            </div>
-          )}
-          {error && (
-            <div className="rounded-2xl border border-rose-300 bg-rose-50 p-6 text-center dark:border-rose-800 dark:bg-rose-900/20">
-              <p className="font-medium">Data could not be loaded: {error.message}</p>
-              <p className="mt-1 text-sm text-neutral-500">Check the <a className="underline" href="https://github.com/JasonXiao127/token-usage/actions">Actions tab</a> or <a className="underline" href="./data/usage.json">raw JSON</a>.</p>
-              <button onClick={() => window.location.reload()} className="mt-3 rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white dark:bg-white dark:text-neutral-900">Retry</button>
-            </div>
-          )}
-          {data && (
-            <>
-              <StaleBanner generatedAt={data.generatedAt} />
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h1 className="text-xl font-semibold">Which models are winning real usage?</h1>
-                  <p className="text-[13px] text-neutral-500 dark:text-neutral-400">Separate ecosystems — shares are relative to each source. Do not add the two totals.</p>
+        <div className="mx-auto flex max-w-[1400px] gap-10 px-4 sm:px-6">
+          {data && <Rail generatedAt={data.generatedAt} windowEnd={data.window.end} ocUpdated={data.window.opencodeUpdatedAt} orAsOf={data.window.openrouterAsOf} />}
+          <main className="min-w-0 flex-1 space-y-8 py-6">
+            {loading && (
+              <div className="space-y-3" aria-label="Loading">
+                {[0, 1, 2].map((i) => <div key={i} className="h-20 animate-pulse bg-(--paper-deep)" />)}
+              </div>
+            )}
+            {error && (
+              <div className="border-l-2 border-(--neg) pl-4">
+                <p className="font-medium">Data could not be loaded: {error.message}</p>
+                <p className="mt-1 text-[13px] text-(--muted)">Check the <a className="underline" href="https://github.com/JasonXiao127/token-usage/actions">Actions tab</a> or <a className="underline" href="./data/usage.json">raw JSON</a>.</p>
+                <button onClick={() => window.location.reload()} className="mt-3 border border-(--ink) px-4 py-1.5 text-[13px] hover:bg-(--ink) hover:text-(--paper)">Retry</button>
+              </div>
+            )}
+            {data && (
+              <>
+                <StaleBanner generatedAt={data.generatedAt} />
+                <Lede data={data} metric={state.metric} />
+                <StatsStrip data={data} metric={state.metric} />
+                <div id="overview" className="scroll-mt-6 space-y-8">
+                  <MetricToggle value={state.metric} onChange={(metric) => patch({ metric, page: 1 })} />
+                  <ShareScatter data={data} metric={state.metric} onSelect={select} />
+                  <LabMix data={data} metric={state.metric} onLab={(lab) => patch({ lab, page: 1 })} />
+                  <TopModels data={data} metric={state.metric} onSelect={select} />
                 </div>
-                <MetricToggle value={state.metric} onChange={(metric) => patch({ metric, page: 1 })} />
-              </div>
-              <KpiCards data={data} metric={state.metric} />
-              <div className="grid gap-3 xl:grid-cols-2">
-                <ShareScatter data={data} metric={state.metric} onSelect={select} />
-                <LabMix data={data} metric={state.metric} onLab={(lab) => patch({ lab, page: 1 })} />
-              </div>
-              <TopModels data={data} metric={state.metric} onSelect={select} />
-              <div className="space-y-2">
-                <TableToolbar data={data} state={state} onPatch={patch} />
-                <ModelTable
-                  data={data} metric={state.metric} rows={sorted} sort={state.sort} dir={state.dir}
-                  onSort={(k) => patch(state.sort === k ? { dir: state.dir === 'asc' ? 'desc' : 'asc' } : { sort: k, dir: 'desc' })}
-                  onSelect={select} page={state.page} perPage={PER_PAGE} onPage={(page) => patch({ page })}
-                />
-              </div>
-              <Methodology data={data} />
-            </>
-          )}
-        </main>
-        <Footer />
+                <div id="models" className="scroll-mt-6 space-y-3">
+                  <h2 className="text-[13px] font-semibold">All models</h2>
+                  <TableToolbar data={data} state={state} onPatch={patch} />
+                  <ModelTable
+                    data={data} metric={state.metric} rows={sorted} sort={state.sort} dir={state.dir}
+                    onSort={(k) => patch(state.sort === k ? { dir: state.dir === 'asc' ? 'desc' : 'asc' } : { sort: k, dir: 'desc' })}
+                    onSelect={select} page={state.page} perPage={PER_PAGE} onPage={(page) => patch({ page })}
+                  />
+                </div>
+                <Methodology data={data} />
+              </>
+            )}
+          </main>
+        </div>
+        <div className="mx-auto max-w-[1400px] px-4 sm:px-6">
+          <Footer />
+        </div>
         <ModelDrawer model={openModel} metric={state.metric} onClose={() => { patch({ model: '' }); window.history.pushState(null, '', window.location.pathname + serializeState({ ...state, model: '' })); }} />
       </div>
     </ErrorBoundary>
   );
 }
-
-// keep import used
-export { tokensOf };

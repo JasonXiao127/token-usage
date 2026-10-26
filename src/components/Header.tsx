@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Github, Moon, Sun, Download } from 'lucide-react';
+import { fmtDateUTC } from '../lib/format';
 
 export function useTheme(): ['light' | 'dark' | 'system', (t: 'light' | 'dark' | 'system') => void, boolean] {
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
@@ -19,36 +20,32 @@ export function useTheme(): ['light' | 'dark' | 'system', (t: 'light' | 'dark' |
 export default function Header({ generatedAt, windowEnd, ocUpdated, orAsOf }: { generatedAt: string; windowEnd: string; ocUpdated: string; orAsOf: string }) {
   const [, setTheme, dark] = useTheme();
   return (
-    <header className="border-b border-neutral-200 bg-white/80 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/80">
-      <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-violet-600 text-sm font-bold text-white">T</div>
-          <div>
-            <div className="text-[15px] font-semibold leading-tight text-neutral-900 dark:text-neutral-50">Token Usage</div>
-            <div className="text-xs text-neutral-500 dark:text-neutral-400">OpenCode × OpenRouter</div>
-          </div>
-        </div>
-        <div className="ml-auto flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-          <span className="hidden md:inline" title={`Fetched ${generatedAt}`}>
-            Window ending {windowEnd} · OC {ocUpdated.slice(0, 16).replace('T', ' ')} UTC · OR {orAsOf}
+    <header className="border-b border-(--rule)">
+      <div className="mx-auto flex max-w-[1400px] flex-wrap items-baseline gap-x-4 gap-y-1 px-4 py-4 sm:px-6">
+        <p className="font-display text-[20px] font-medium leading-none tracking-[-0.01em]">
+          Token Usage
+        </p>
+        <p className="text-[11px] text-(--muted)">
+          OpenCode × OpenRouter · model usage index
+        </p>
+        <div className="ml-auto flex items-center gap-1 text-(--muted)">
+          <span className="num hidden text-[11px] lg:inline" title={`Fetched ${fmtDateUTC(generatedAt)}`}>
+            {windowEnd} · OC {ocUpdated.slice(0, 16).replace('T', ' ')} UTC · OR {orAsOf}
           </span>
           <button
             onClick={() => setTheme(dark ? 'light' : 'dark')}
-            className="rounded-lg border border-neutral-200 p-2 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
-            aria-label="Toggle theme"
+            className="p-2 hover:text-(--ink)"
+            aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {dark ? <Sun size={15} /> : <Moon size={15} />}
           </button>
-          <a href={`${import.meta.env.BASE_URL}data/usage.json`} download className="rounded-lg border border-neutral-200 p-2 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800" aria-label="Download JSON" title="Download raw JSON">
+          <a href={`${import.meta.env.BASE_URL}data/usage.json`} download className="p-2 hover:text-(--ink)" aria-label="Download raw JSON" title="Download raw JSON">
             <Download size={15} />
           </a>
-          <a href="https://github.com/JasonXiao127/token-usage" target="_blank" rel="noreferrer" className="rounded-lg border border-neutral-200 p-2 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800" aria-label="GitHub repo">
+          <a href="https://github.com/JasonXiao127/token-usage" target="_blank" rel="noreferrer" className="p-2 hover:text-(--ink)" aria-label="GitHub repository">
             <Github size={15} />
           </a>
         </div>
-      </div>
-      <div className="border-t border-neutral-100 px-4 py-1.5 text-[11px] text-neutral-500 md:hidden dark:border-neutral-800 dark:text-neutral-400">
-        Window ending {windowEnd} · OC {ocUpdated.slice(0, 16).replace('T', ' ')} UTC · OR {orAsOf}
       </div>
     </header>
   );

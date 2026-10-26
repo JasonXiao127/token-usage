@@ -9,3 +9,5 @@ data/
 *.local
 .DS_Store
 tsconfig.tsbuildinfo
+shots/
+.playwright-mcp/

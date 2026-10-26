@@ -3,7 +3,16 @@ import { X, ExternalLink } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import type { Metric, ModelRow } from '../../shared/types';
 import { fmtTokens, fmtShare, fmtPrice, fmtCtx, fmtFull } from '../lib/format';
-import { StatusBadge } from './ModelTable';
+import { StatusText } from './ModelTable';
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="border-t border-(--rule) pt-3">
+      <h3 className="mb-1.5 text-[12px] font-semibold">{title}</h3>
+      {children}
+    </div>
+  );
+}
 
 export default function ModelDrawer({ model, metric, onClose }: { model: ModelRow | null; metric: Metric; onClose: () => void }) {
   useEffect(() => {
@@ -18,103 +27,87 @@ export default function ModelDrawer({ model, metric, onClose }: { model: ModelRo
   const daily = (m.opencode?.daily || []).slice(-60);
   return (
     <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={`${m.name} details`}>
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <aside className="tu-scroll absolute right-0 top-0 flex h-full w-full max-w-[560px] flex-col overflow-y-auto border-l border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
-        <div className="sticky top-0 flex items-start gap-3 border-b border-neutral-200 bg-white/95 p-4 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/95">
+      <div className="tu-fade absolute inset-0 bg-black/35" onClick={onClose} />
+      <aside className="tu-drawer tu-scroll absolute right-0 top-0 flex h-full w-full max-w-[560px] flex-col overflow-y-auto border-l border-(--rule) bg-(--paper)">
+        <div className="flex items-start gap-3 border-b border-(--ink) p-5">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h2 className="truncate text-lg font-semibold text-neutral-900 dark:text-neutral-50">{m.name}</h2>
-              <StatusBadge status={m.status} />
-            </div>
-            <div className="text-xs text-neutral-500">{m.labName} · {m.key}</div>
-            <div className="mt-1 flex gap-3 text-xs">
-              {m.meta.opencodePage && <a href={m.meta.opencodePage} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-teal-600 hover:underline">OpenCode <ExternalLink size={11} /></a>}
-              {m.meta.openrouterPage && <a href={m.meta.openrouterPage} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-violet-600 hover:underline">OpenRouter <ExternalLink size={11} /></a>}
+            <p className="text-[11px] text-(--muted)">{m.labName} · <StatusText status={m.status} /></p>
+            <h2 className="font-display mt-0.5 text-[22px] font-medium leading-tight tracking-[-0.01em]">{m.name}</h2>
+            <p className="num mt-1 text-[11px] text-(--muted)">{m.key}</p>
+            <div className="mt-2 flex gap-4 text-[12px]">
+              {m.meta.opencodePage && <a href={m.meta.opencodePage} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-(--oc) underline-offset-2 hover:underline">OpenCode <ExternalLink size={11} /></a>}
+              {m.meta.openrouterPage && <a href={m.meta.openrouterPage} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-(--or) underline-offset-2 hover:underline">OpenRouter <ExternalLink size={11} /></a>}
             </div>
           </div>
-          <button onClick={onClose} aria-label="Close" className="rounded-lg border border-neutral-200 p-2 dark:border-neutral-700"><X size={16} /></button>
+          <button onClick={onClose} aria-label="Close" className="p-1.5 hover:text-(--muted)"><X size={17} /></button>
         </div>
 
-        <div className="space-y-4 p-4">
-          {m.stale && <div className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">Detail data may be stale — the model page hasn't updated recently. Totals below reflect the last successful fetch.</div>}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-              <div className="text-[11px] font-medium text-teal-700 dark:text-teal-300">OpenCode</div>
-              <div className="num text-lg font-semibold">{fmtTokens(m.opencode?.tokens[metric])}</div>
-              <div className="num text-[11px] text-neutral-500">share {fmtShare(m.opencode?.share[metric])} · 2mo {fmtTokens(m.opencode?.twoMonthTokens)}</div>
-              {m.opencode && <div className="mt-1 text-[11px] text-neutral-500">users {m.opencode.uniqueUsers != null ? fmtFull(m.opencode.uniqueUsers) : '—'} · sessions {m.opencode.sessions != null ? fmtFull(m.opencode.sessions) : '—'}</div>}
-            </div>
-            <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-              <div className="text-[11px] font-medium text-violet-700 dark:text-violet-300">OpenRouter · excl. BYOK</div>
-              <div className="num text-lg font-semibold">{fmtTokens(m.openrouter?.tokens[metric])}</div>
-              <div className="num text-[11px] text-neutral-500">share {fmtShare(m.openrouter?.share[metric])}</div>
-              {m.openrouter && <div className="mt-1 text-[11px] text-neutral-500">requests {fmtFull(m.openrouter.requests[metric])}</div>}
-            </div>
-          </div>
+        <div className="space-y-4 p-5">
+          {m.stale && <p className="border-l-2 border-(--or) pl-3 text-[12px] text-(--muted)">Detail data may be stale — the model page has not updated recently. Totals reflect the last successful fetch.</p>}
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-2">
+            <div><dt className="text-[11px] text-(--oc)">OpenCode</dt><dd className="num text-[20px] font-medium">{fmtTokens(m.opencode?.tokens[metric])}</dd><dd className="num text-[11px] text-(--muted)">share {fmtShare(m.opencode?.share[metric])} · 2-mo {fmtTokens(m.opencode?.twoMonthTokens)}</dd></div>
+            <div><dt className="text-[11px] text-(--or)">OpenRouter · excl. BYOK</dt><dd className="num text-[20px] font-medium">{fmtTokens(m.openrouter?.tokens[metric])}</dd><dd className="num text-[11px] text-(--muted)">share {fmtShare(m.openrouter?.share[metric])}</dd></div>
+          </dl>
+          {m.opencode && <p className="num text-[11px] text-(--muted)">users {m.opencode.uniqueUsers != null ? fmtFull(m.opencode.uniqueUsers) : '—'} · sessions {m.opencode.sessions != null ? fmtFull(m.opencode.sessions) : '—'}{m.openrouter ? ` · requests ${fmtFull(m.openrouter.requests[metric])}` : ''}</p>}
 
           {daily.length > 1 && (
-            <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-              <div className="mb-1 text-xs font-medium text-neutral-600 dark:text-neutral-300">OpenCode daily tokens (last {daily.length} days)</div>
+            <Section title={`OpenCode daily tokens, last ${daily.length} days`}>
               <div className="h-[180px]">
                 <ResponsiveContainer>
                   <AreaChart data={daily.map((d) => ({ ...d, label: d.date.slice(5) }))}>
-                    <XAxis dataKey="label" tick={{ fontSize: 10 }} minTickGap={24} />
-                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => fmtTokens(v)} width={52} />
-                    <Tooltip formatter={(v) => [fmtTokens(v as number), 'tokens']} labelFormatter={(l) => String(l)} />
-                    <Area type="monotone" dataKey="tokens" stroke="#0d9488" fill="#0d9488" fillOpacity={0.18} strokeWidth={2} />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--muted)', fontFamily: 'var(--font-mono)' }} minTickGap={24} axisLine={{ stroke: 'var(--rule)' }} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: 'var(--muted)', fontFamily: 'var(--font-mono)' }} tickFormatter={(v: number) => fmtTokens(v)} width={52} axisLine={false} tickLine={false} />
+                    <Tooltip formatter={(v) => [fmtTokens(v as number), 'tokens']} labelFormatter={(l) => String(l)} contentStyle={{ background: 'var(--paper)', border: '1px solid var(--rule)', fontSize: 12 }} />
+                    <Area type="monotone" dataKey="tokens" stroke="var(--oc)" fill="var(--oc)" fillOpacity={0.12} strokeWidth={1.5} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-            </div>
+            </Section>
           )}
 
-          <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-            <div className="mb-1 text-xs font-medium">Facts</div>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-              <dt className="text-neutral-500">Context</dt><dd className="num text-right">{fmtCtx(m.meta.contextTokens)}</dd>
-              <dt className="text-neutral-500">Max output</dt><dd className="num text-right">{fmtCtx(m.meta.outputTokens)}</dd>
-              <dt className="text-neutral-500">Released</dt><dd className="text-right">{m.meta.releaseDate || '—'}</dd>
-              <dt className="text-neutral-500">Knowledge</dt><dd className="text-right">{m.meta.knowledgeCutoff || '—'}</dd>
-              <dt className="text-neutral-500">Reasoning</dt><dd className="text-right">{m.meta.reasoning == null ? '—' : m.meta.reasoning ? 'yes' : 'no'}</dd>
-              <dt className="text-neutral-500">Open weights</dt><dd className="text-right">{m.meta.openWeights == null ? '—' : m.meta.openWeights ? 'yes' : 'no'}</dd>
+          <Section title="Facts">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-[12px]">
+              <dt className="text-(--muted)">Context</dt><dd className="num text-right">{fmtCtx(m.meta.contextTokens)}</dd>
+              <dt className="text-(--muted)">Max output</dt><dd className="num text-right">{fmtCtx(m.meta.outputTokens)}</dd>
+              <dt className="text-(--muted)">Released</dt><dd className="text-right">{m.meta.releaseDate || '—'}</dd>
+              <dt className="text-(--muted)">Knowledge</dt><dd className="text-right">{m.meta.knowledgeCutoff || '—'}</dd>
+              <dt className="text-(--muted)">Reasoning</dt><dd className="text-right">{m.meta.reasoning == null ? '—' : m.meta.reasoning ? 'yes' : 'no'}</dd>
+              <dt className="text-(--muted)">Open weights</dt><dd className="text-right">{m.meta.openWeights == null ? '—' : m.meta.openWeights ? 'yes' : 'no'}</dd>
             </dl>
-          </div>
+          </Section>
 
-          <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-            <div className="mb-1 text-xs font-medium">Price per 1M tokens</div>
-            <div className="num grid grid-cols-3 gap-2 text-xs">
-              <span className="text-neutral-500">Input<br /><b className="text-neutral-900 dark:text-neutral-100">OC {fmtPrice(m.meta.pricing?.input)}<br />OR {fmtPrice(m.meta.orPricing?.input)}</b></span>
-              <span className="text-neutral-500">Output<br /><b className="text-neutral-900 dark:text-neutral-100">OC {fmtPrice(m.meta.pricing?.output)}<br />OR {fmtPrice(m.meta.orPricing?.output)}</b></span>
-              <span className="text-neutral-500">Cached<br /><b className="text-neutral-900 dark:text-neutral-100">OC {fmtPrice(m.meta.pricing?.cachedInput)}<br />OR {fmtPrice(m.meta.orPricing?.cachedInput)}</b></span>
+          <Section title="Price per 1M tokens">
+            <div className="num grid grid-cols-3 gap-2 text-[12px]">
+              <span className="text-(--muted)">Input<br /><b className="font-medium text-(--ink)">OC {fmtPrice(m.meta.pricing?.input)}<br />OR {fmtPrice(m.meta.orPricing?.input)}</b></span>
+              <span className="text-(--muted)">Output<br /><b className="font-medium text-(--ink)">OC {fmtPrice(m.meta.pricing?.output)}<br />OR {fmtPrice(m.meta.orPricing?.output)}</b></span>
+              <span className="text-(--muted)">Cached<br /><b className="font-medium text-(--ink)">OC {fmtPrice(m.meta.pricing?.cachedInput)}<br />OR {fmtPrice(m.meta.orPricing?.cachedInput)}</b></span>
             </div>
-          </div>
+          </Section>
 
           {(m.opencode?.variants?.length ?? 0) > 1 && (
-            <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-              <div className="mb-1 text-xs font-medium">OpenCode variants ({m.opencode!.variants.length})</div>
-              <ul className="space-y-1 text-xs">
+            <Section title={`OpenCode variants (${m.opencode!.variants.length})`}>
+              <ul className="divide-y divide-(--rule) text-[12px]">
                 {m.opencode!.variants.map((v) => (
-                  <li key={v.id} className="flex justify-between gap-2">
-                    <a href={v.pageUrl} target="_blank" rel="noreferrer" className="truncate text-teal-600 hover:underline">{v.name}</a>
+                  <li key={v.id} className="flex justify-between gap-2 py-1">
+                    <a href={v.pageUrl} target="_blank" rel="noreferrer" className="truncate text-(--oc) underline-offset-2 hover:underline">{v.name}</a>
                     <span className="num shrink-0">{fmtTokens(v.tokens.week)} / 7d</span>
                   </li>
                 ))}
               </ul>
-            </div>
+            </Section>
           )}
 
           {(m.openrouter?.variants?.length ?? 0) > 0 && (
-            <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-              <div className="mb-1 text-xs font-medium">OpenRouter variants ({m.openrouter!.variants.length})</div>
-              <ul className="space-y-1 text-xs">
+            <Section title={`OpenRouter variants (${m.openrouter!.variants.length})`}>
+              <ul className="divide-y divide-(--rule) text-[12px]">
                 {m.openrouter!.variants.slice().sort((a, b) => (b.tokens.week ?? 0) - (a.tokens.week ?? 0)).slice(0, 12).map((v) => (
-                  <li key={v.permaslug + v.variant} className="flex justify-between gap-2">
-                    <span className="truncate">{v.permaslug} <span className="text-neutral-400">· {v.variant}</span></span>
+                  <li key={v.permaslug + v.variant} className="flex justify-between gap-2 py-1">
+                    <span className="truncate">{v.permaslug} <span className="text-(--muted)">· {v.variant}</span></span>
                     <span className="num shrink-0">{fmtTokens(v.tokens.week)} / 7d</span>
                   </li>
                 ))}
               </ul>
-            </div>
+            </Section>
           )}
         </div>
       </aside>
