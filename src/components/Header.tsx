@@ -26,7 +26,7 @@ export default function Header({ generatedAt, windowEnd, ocUpdated, orAsOf }: { 
           Token Usage
         </p>
         <p className="text-[11px] text-(--muted)">
-          OpenCode × OpenRouter · model usage index
+          Global model usage · OpenCode + OpenRouter
         </p>
         <div className="ml-auto flex items-center gap-1 text-(--muted)">
           <span className="num hidden text-[11px] lg:inline" title={`Fetched ${fmtDateUTC(generatedAt)}`}>

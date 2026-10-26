@@ -4,7 +4,7 @@ import Lede from './components/Lede';
 import StaleBanner from './components/StaleBanner';
 import StatsStrip from './components/StatsStrip';
 import MetricToggle from './components/MetricToggle';
-import ShareScatter from './components/ShareScatter';
+import GlobalShare from './components/GlobalShare';
 import LabMix from './components/LabMix';
 import TopModels from './components/TopModels';
 import ModelTable, { sortModels } from './components/ModelTable';
@@ -16,13 +16,14 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { useData } from './hooks/useData';
 import { useDebounced } from './hooks/useUI';
 import { DEFAULT_STATE, parseState, serializeState, type DashboardState } from './lib/urlState';
+import { combinedTokens } from './lib/derive';
 import { fmtDateUTC } from './lib/format';
 
 const PER_PAGE = 100;
 
 function Rail({ generatedAt, windowEnd, ocUpdated, orAsOf }: { generatedAt: string; windowEnd: string; ocUpdated: string; orAsOf: string }) {
   return (
-    <aside className="hidden w-60 shrink-0 lg:block" aria-label="About this index">
+    <aside className="hidden w-60 shrink-0 lg:block" aria-label="About">
       <div className="sticky top-6 space-y-5 text-[12px]">
         <div>
           <h2 className="text-[11px] text-(--muted)">Window</h2>
@@ -30,7 +31,7 @@ function Rail({ generatedAt, windowEnd, ocUpdated, orAsOf }: { generatedAt: stri
           <p className="num mt-0.5 text-(--muted)">complete UTC days</p>
         </div>
         <div>
-          <h2 className="text-[11px] text-(--muted)">Sources</h2>
+          <h2 className="text-[11px] text-(--muted)">Observed across</h2>
           <p className="mt-0.5"><a className="text-(--oc) underline-offset-2 hover:underline" href="https://opencode.ai/data/">OpenCode Data</a></p>
           <p className="num mt-0.5 text-(--muted)">{ocUpdated.slice(0, 16).replace('T', ' ')} UTC</p>
           <p className="mt-1.5"><a className="text-(--or) underline-offset-2 hover:underline" href="https://openrouter.ai/rankings">OpenRouter rankings</a></p>
@@ -80,11 +81,9 @@ export default function App() {
       if (state.lab && m.lab !== state.lab) return false;
       if (state.status && m.status !== state.status) return false;
       if (state.hasUsage && !state.showAll) {
-        const has = (m.opencode?.tokens[state.metric] ?? 0) > 0 || (m.openrouter?.tokens[state.metric] ?? 0) > 0;
-        if (!has) return false;
+        if ((combinedTokens(m, state.metric) ?? 0) <= 0) return false;
       } else if (!state.hasUsage && !state.showAll) {
-        const has = (m.opencode?.tokens[state.metric] ?? 0) > 0 || (m.openrouter?.tokens[state.metric] ?? 0) > 0;
-        if (has) return false;
+        if ((combinedTokens(m, state.metric) ?? 0) > 0) return false;
       }
       if (ql && !(m.name.toLowerCase().includes(ql) || m.key.toLowerCase().includes(ql) || m.labName.toLowerCase().includes(ql) || m.lab.toLowerCase().includes(ql))) return false;
       return true;
@@ -128,8 +127,8 @@ export default function App() {
                 <StatsStrip data={data} metric={state.metric} />
                 <div id="overview" className="scroll-mt-6 space-y-8">
                   <MetricToggle value={state.metric} onChange={(metric) => patch({ metric, page: 1 })} />
-                  <ShareScatter data={data} metric={state.metric} onSelect={select} />
-                  <LabMix data={data} metric={state.metric} onLab={(lab) => patch({ lab, page: 1 })} />
+                  <GlobalShare data={data} metric={state.metric} onSelect={select} />
+                  <LabMix data={data} onLab={(lab) => patch({ lab, page: 1 })} />
                   <TopModels data={data} metric={state.metric} onSelect={select} />
                 </div>
                 <div id="models" className="scroll-mt-6 space-y-3">

@@ -1,22 +1,22 @@
 import type { DataFile, Metric, ModelRow } from '../../shared/types';
-import { tokensOf, shareOf, indexRatio, indexLabel, modalityOf } from '../lib/derive';
+import { tokensOf, shareOf, combinedTokens, combinedShare, sourceMix, modalityOf } from '../lib/derive';
 import { fmtTokens, fmtShare, fmtChange, fmtCtx, fmtPrice } from '../lib/format';
 import { labColor } from '../lib/colors';
 
-export type SortKey = 'oc' | 'or' | 'idx' | 'name' | 'ctx' | 'price' | 'rel';
+export type SortKey = 'combined' | 'oc' | 'or' | 'name' | 'ctx' | 'price' | 'rel';
 
 export function sortModels(models: ModelRow[], sort: SortKey | string, dir: 'asc' | 'desc', metric: Metric): ModelRow[] {
   const m = dir === 'asc' ? 1 : -1;
   return [...models].sort((a, b) => {
     switch (sort) {
+      case 'oc': return ((tokensOf(a, 'opencode', metric) ?? -1) - (tokensOf(b, 'opencode', metric) ?? -1)) * m;
       case 'or': return ((tokensOf(a, 'openrouter', metric) ?? -1) - (tokensOf(b, 'openrouter', metric) ?? -1)) * m;
-      case 'idx': return (((indexRatio(a, metric) ?? -999)) - ((indexRatio(b, metric) ?? -999))) * m;
       case 'name': return a.name.localeCompare(b.name) * m;
       case 'ctx': return (((a.meta.contextTokens ?? -1)) - ((b.meta.contextTokens ?? -1))) * m;
       case 'price': return (((a.meta.pricing?.input ?? a.meta.orPricing?.input ?? -1)) - ((b.meta.pricing?.input ?? b.meta.orPricing?.input ?? -1))) * m;
       case 'rel': return ((a.meta.releaseDate || '').localeCompare(b.meta.releaseDate || '')) * m;
-      case 'oc':
-      default: return ((tokensOf(a, 'opencode', metric) ?? -1) - (tokensOf(b, 'opencode', metric) ?? -1)) * m;
+      case 'combined':
+      default: return ((combinedTokens(a, metric) ?? -1) - (combinedTokens(b, metric) ?? -1)) * m;
     }
   });
 }
@@ -28,38 +28,28 @@ function Change({ v, isNew }: { v: number | null; isNew?: boolean }) {
 }
 
 export function StatusText({ status }: { status: ModelRow['status'] }) {
-  const label = status === 'matched' ? 'both' : status === 'opencode-only' ? 'OC only' : 'OR only';
+  const label = status === 'matched' ? 'both sources' : status === 'opencode-only' ? 'OC only' : 'OR only';
   return <span className="whitespace-nowrap text-[11px] text-(--muted)">{label}</span>;
 }
 
-const COLS: Array<{ key: SortKey | string; label: string }> = [
-  { key: 'name', label: 'Model' },
-  { key: 'oc', label: 'OpenCode' },
-  { key: 'or', label: 'OpenRouter' },
-  { key: 'idx', label: 'Index' },
-  { key: 'ctx', label: 'Context' },
-  { key: 'price', label: 'Price $/1M' },
-  { key: 'rel', label: 'Released' },
+const COLS: Array<{ key: SortKey | 'mix'; label: string; sortable: boolean }> = [
+  { key: 'name', label: 'Model', sortable: true },
+  { key: 'combined', label: 'Combined', sortable: true },
+  { key: 'oc', label: 'OpenCode', sortable: true },
+  { key: 'or', label: 'OpenRouter', sortable: true },
+  { key: 'mix', label: 'Observed', sortable: false },
+  { key: 'ctx', label: 'Context', sortable: true },
+  { key: 'price', label: 'Price $/1M', sortable: true },
+  { key: 'rel', label: 'Released', sortable: true },
 ];
 
-function IndexTick({ m, metric }: { m: ModelRow; metric: Metric }) {
-  const idx = indexRatio(m, metric);
-  if (idx == null) return <span className="text-[11px] text-(--muted)">{indexLabel(m, metric)}</span>;
-  const w = Math.min(64, Math.abs(idx) * 22 + 8);
+function MixBar({ m, metric }: { m: ModelRow; metric: Metric }) {
+  const mix = sourceMix(m, metric);
+  if (mix.oc + mix.or <= 0) return <span className="text-[11px] text-(--muted)">—</span>;
   return (
-    <span className="flex items-center gap-2">
-      <span className="relative block h-[3px] w-16 bg-(--rule)">
-        <span
-          className="absolute top-0 h-[3px]"
-          style={{
-            width: `${w / 2}px`,
-            background: idx >= 0 ? 'var(--oc)' : 'var(--or)',
-            ...(idx >= 0 ? { left: '50%' } : { right: '50%' }),
-          }}
-        />
-        <span className="absolute left-1/2 top-[-2px] h-[7px] w-px bg-(--muted)" />
-      </span>
-      <span className="num whitespace-nowrap text-[11px]">{indexLabel(m, metric)}</span>
+    <span className="flex h-[3px] w-16" title={`OpenCode ${fmtShare(mix.oc * 100)} · OpenRouter ${fmtShare(mix.or * 100)}`}>
+      <span className="h-full" style={{ width: `${mix.oc * 100}%`, background: 'var(--oc)' }} />
+      <span className="h-full" style={{ width: `${mix.or * 100}%`, background: 'var(--or)' }} />
     </span>
   );
 }
@@ -73,14 +63,16 @@ export default function ModelTable({ metric, rows, sort, dir, onSort, onSelect, 
   return (
     <div>
       <div className="tu-scroll hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[860px] border-collapse text-left text-[13px]">
+        <table className="w-full min-w-[920px] border-collapse text-left text-[13px]">
           <thead>
             <tr className="border-b border-(--ink)">
               {COLS.map((c) => (
                 <th key={c.key} aria-sort={sort === c.key ? (dir === 'asc' ? 'ascending' : 'descending') : undefined} className="px-3 py-2 pl-0 pr-6 text-[11px] font-medium text-(--muted)">
-                  <button onClick={() => onSort(c.key)} className="hover:text-(--ink)">
-                    {c.label}{sort === c.key ? (dir === 'asc' ? ' ↑' : ' ↓') : ''}
-                  </button>
+                  {c.sortable ? (
+                    <button onClick={() => onSort(c.key)} className="hover:text-(--ink)">
+                      {c.label}{sort === c.key ? (dir === 'asc' ? ' ↑' : ' ↓') : ''}
+                    </button>
+                  ) : c.label}
                 </th>
               ))}
             </tr>
@@ -101,16 +93,19 @@ export default function ModelTable({ metric, rows, sort, dir, onSort, onSelect, 
                     </span>
                   </td>
                   <td className="whitespace-nowrap py-2 pl-0 pr-6">
+                    <span><span className="num font-medium">{fmtTokens(combinedTokens(m, metric))}</span> <span className="num text-[11px] text-(--muted)">{fmtShare(combinedShare(m, metric))}</span><br /><Change v={m.combined.changeWeek} isNew={m.combined.changeIsNew} /></span>
+                  </td>
+                  <td className="whitespace-nowrap py-2 pl-0 pr-6">
                     {oc == null ? <span className="text-(--muted)" title="No OpenCode data">—</span> : (
-                      <span><span className="num font-medium">{fmtTokens(oc)}</span> <span className="num text-[11px] text-(--muted)">{fmtShare(shareOf(m, 'opencode', metric))}</span><br /><Change v={m.opencode?.changeWeek ?? null} isNew={m.opencode?.changeIsNew} /></span>
+                      <span><span className="num">{fmtTokens(oc)}</span> <span className="num text-[11px] text-(--muted)">{fmtShare(shareOf(m, 'opencode', metric))}</span></span>
                     )}
                   </td>
                   <td className="whitespace-nowrap py-2 pl-0 pr-6">
-                    {or == null ? <span className="text-(--muted)" title="No OpenRouter match">—</span> : (
-                      <span><span className="num font-medium">{fmtTokens(or)}</span> <span className="num text-[11px] text-(--muted)">{fmtShare(shareOf(m, 'openrouter', metric))}</span><br /><Change v={m.openrouter?.changeWeek ?? null} /></span>
+                    {or == null ? <span className="text-(--muted)" title="No OpenRouter data">—</span> : (
+                      <span><span className="num">{fmtTokens(or)}</span> <span className="num text-[11px] text-(--muted)">{fmtShare(shareOf(m, 'openrouter', metric))}</span></span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap py-2 pl-0 pr-6"><IndexTick m={m} metric={metric} /></td>
+                  <td className="whitespace-nowrap py-2 pl-0 pr-6"><MixBar m={m} metric={metric} /></td>
                   <td className="num whitespace-nowrap py-2 pl-0 pr-6">{fmtCtx(m.meta.contextTokens)}</td>
                   <td className="num whitespace-nowrap py-2 pl-0 pr-6 text-[12px]">{fmtPrice(m.meta.pricing?.input ?? m.meta.orPricing?.input)} / {fmtPrice(m.meta.pricing?.output ?? m.meta.orPricing?.output)}</td>
                   <td className="num whitespace-nowrap py-2 pl-0 pr-0 text-[12px] text-(--muted)">{m.meta.releaseDate || '—'}</td>
@@ -129,8 +124,8 @@ export default function ModelTable({ metric, rows, sort, dir, onSort, onSelect, 
               <StatusText status={m.status} />
             </span>
             <span className="num mt-1 grid grid-cols-2 gap-2 text-[12px]">
-              <span>OC <b>{fmtTokens(tokensOf(m, 'opencode', metric))}</b> <span className="text-(--muted)">{fmtShare(shareOf(m, 'opencode', metric))}</span></span>
-              <span>OR <b>{fmtTokens(tokensOf(m, 'openrouter', metric))}</b> <span className="text-(--muted)">{fmtShare(shareOf(m, 'openrouter', metric))}</span></span>
+              <span>Combined <b>{fmtTokens(combinedTokens(m, metric))}</b> <span className="text-(--muted)">{fmtShare(combinedShare(m, metric))}</span></span>
+              <span>OC <b>{fmtTokens(tokensOf(m, 'opencode', metric))}</b> · OR <b>{fmtTokens(tokensOf(m, 'openrouter', metric))}</b></span>
             </span>
           </button>
         ))}

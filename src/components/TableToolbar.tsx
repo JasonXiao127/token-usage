@@ -21,10 +21,10 @@ export default function TableToolbar({ data, state, onPatch }: { data: DataFile;
         </select>
       </label>
       <label className="flex items-center gap-2 text-[13px]">
-        <span className="text-(--muted)">Source</span>
-        <select value={state.status} onChange={(e) => onPatch({ status: e.target.value as DashboardState['status'], page: 1 })} aria-label="Filter by source" className="bg-transparent py-1.5 text-[13px] outline-none">
-          <option value="">Matched + single</option>
-          <option value="matched">Both</option>
+        <span className="text-(--muted)">Coverage</span>
+        <select value={state.status} onChange={(e) => onPatch({ status: e.target.value as DashboardState['status'], page: 1 })} aria-label="Filter by coverage" className="bg-transparent py-1.5 text-[13px] outline-none">
+          <option value="">All coverage</option>
+          <option value="matched">Both sources</option>
           <option value="opencode-only">OpenCode only</option>
           <option value="openrouter-only">OpenRouter only</option>
         </select>

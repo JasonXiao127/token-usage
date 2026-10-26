@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fetchIndex, fetchLabs, fetchLabList, fetchLabUsageHtml, fetchDetails, type OcLab, type OcDetail } from './lib/opencode.ts';
 import { fetchCatalog, fetchRankings, rankDate, rankTokensExclByok, type OrCatalogModel, type OrRankRow } from './lib/openrouter.ts';
 import { buildGroups, matchOrBase, type CatalogEntry, type OrBase } from './lib/match.ts';
+import { combinedUsage } from './lib/combined.ts';
 import { normalize, normalizeSlug, splitId, stripVersion, PROVIDER_ALIAS } from './lib/aliases.ts';
 import type { DataFile, ModelRow, DailyPoint } from '../shared/types.ts';
 
@@ -361,6 +362,13 @@ async function main() {
 
   // Build model rows
   const models: ModelRow[] = [];
+  const EMPTY_COMBINED = {
+    tokens: { day: null, week: null, month: null },
+    share: { day: null, week: null, month: null },
+    changeWeek: null,
+    opencode: false,
+    openrouter: false,
+  };
   const matchedKeys = new Set<string>();
   const orMatch: Array<{ orKey: string; ocKey: string | null; type: string }> = [];
   for (const [orKey, b] of orBases) {
@@ -457,6 +465,7 @@ async function main() {
           requests: { ...b.requests }, promptTokens: { ...b.prompt }, completionTokens: { ...b.completion }, byokTokens: { ...b.byok },
           matchType: 'none',
         },
+        combined: EMPTY_COMBINED,
         status: 'openrouter-only', stale: false,
       });
       continue;
@@ -485,6 +494,7 @@ async function main() {
         },
         opencode: { tokens: { day: 0, week: 0, month: 0 }, twoMonthTokens: 0, share: { day: 0, week: 0, month: 0 }, changeWeek: null, daily: [], variants: [], uniqueUsers: null, sessions: null, costUsd: null, cachedInputPercent: null, weeklyRetentionPercent: null, rankWeek: null, detailAvailable: false },
         openrouter: null,
+        combined: EMPTY_COMBINED,
         status: 'opencode-only', stale: false,
       });
       void meta0;
@@ -570,12 +580,24 @@ async function main() {
         byokTokens: { day: orList.reduce((s, b) => s + b.byok.day, 0), week: orList.reduce((s, b) => s + b.byok.week, 0), month: orList.reduce((s, b) => s + b.byok.month, 0) },
         matchType: 'exact',
       } : null,
+      combined: EMPTY_COMBINED,
       status: hasOr ? 'matched' : 'opencode-only',
       stale,
     });
   }
-  // sort models: OC week desc, then OR week desc
-  models.sort((a, b) => ((b.opencode?.tokens.week ?? -1) - (a.opencode?.tokens.week ?? -1)) || ((b.openrouter?.tokens.week ?? -1) - (a.openrouter?.tokens.week ?? -1)));
+  // combined observed usage per model + global sort
+  const combinedTotals = { day: ocDay + orDayTotal, week: ocWeek + orWeekTotal, month: ocMonth + orMonthTotal };
+  const ocTotals = { day: ocDay, week: ocWeek, month: ocMonth };
+  const orTotals = { day: orDayTotal, week: orWeekTotal, month: orMonthTotal };
+  for (const m of models) {
+    m.combined = combinedUsage(
+      m.opencode ? { tokens: m.opencode.tokens, changeWeek: m.opencode.changeWeek, changeIsNew: m.opencode.changeIsNew } : null,
+      m.openrouter ? { tokens: m.openrouter.tokens, changeWeek: m.openrouter.changeWeek } : null,
+      { opencode: ocTotals, openrouter: orTotals },
+    );
+  }
+  // sort models: combined week desc, then combined day desc
+  models.sort((a, b) => ((b.combined.tokens.week ?? -1) - (a.combined.tokens.week ?? -1)) || ((b.combined.tokens.day ?? -1) - (a.combined.tokens.day ?? -1)));
 
   // labs table
   const labIdsAll = [...new Set(models.map((m) => m.lab))].sort();
@@ -593,8 +615,9 @@ async function main() {
     id, name: labNameOf(id),
     opencodeTokensWeek: ocWeekByLab.get(id) || 0,
     openrouterTokensWeek: orWeekByLab.get(id) || 0,
+    combinedTokensWeek: (ocWeekByLab.get(id) || 0) + (orWeekByLab.get(id) || 0),
     models: models.filter((m) => m.lab === id).length,
-  })).sort((a, b) => b.opencodeTokensWeek - a.opencodeTokensWeek);
+  })).sort((a, b) => b.combinedTokensWeek - a.combinedTokensWeek);
 
   const matched = models.filter((m) => m.status === 'matched');
   const ocOnly = models.filter((m) => m.status === 'opencode-only' && (m.opencode?.tokens.week || 0) > 0);
@@ -625,6 +648,7 @@ async function main() {
     totals: {
       opencode: { day: ocDay, week: ocWeek, month: ocMonth },
       openrouter: { day: orDayTotal, week: orWeekTotal, month: orMonthTotal },
+      combined: combinedTotals,
       opencodeModelsWithUsage: { day: models.filter((m) => (m.opencode?.tokens.day || 0) > 0).length, week: models.filter((m) => (m.opencode?.tokens.week || 0) > 0).length, month: models.filter((m) => (m.opencode?.tokens.month || 0) > 0).length },
       openrouterModelsWithUsage: { day: orBases.size ? [...orBases.values()].filter((b) => b.tokens.day > 0).length : 0, week: [...orBases.values()].filter((b) => b.tokens.week > 0).length, month: [...orBases.values()].filter((b) => b.tokens.month > 0).length },
       matchedModels: matched.length,
@@ -650,9 +674,8 @@ async function main() {
   await fs.writeFile(tmp, JSON.stringify(data));
   await fs.rename(tmp, OUT);
   await fs.mkdir(path.dirname(REPORT), { recursive: true });
-  const topOc = models.filter((m) => (m.opencode?.tokens.week || 0) > 0).slice(0, 5).map((m) => `- ${m.name} (${(m.opencode!.tokens.week! / 1e12).toFixed(1)}T)`);
-  const topOr = [...models].sort((a, b) => (b.openrouter?.tokens.week || 0) - (a.openrouter?.tokens.week || 0)).slice(0, 5).map((m) => `- ${m.name} (${((m.openrouter?.tokens.week || 0) / 1e12).toFixed(1)}T)`);
-  await fs.writeFile(REPORT, `# Match report\n\n- Generated: ${data.generatedAt}\n- Window end: ${windowEnd}\n- Models: ${models.length} (matched ${matched.length}, OC-only ${ocOnly.length}, OR-only ${orOnly.length})\n- OR week coverage: ${coverage.toFixed(1)}%\n- Errors: ${errors.length ? errors.join('; ') : 'none'}\n- Warnings: ${warnings.length}\n${warnings.map((w) => `  - ${w}`).join('\n')}\n\n## Top OpenCode (week)\n${topOc.join('\n')}\n\n## Top OpenRouter (week)\n${topOr.join('\n')}\n`);
+  const topCombined = models.filter((m) => (m.combined.tokens.week || 0) > 0).slice(0, 8).map((m) => `- ${m.name} (${(m.combined.tokens.week! / 1e12).toFixed(1)}T, ${m.combined.share.week?.toFixed(1)}%)`);
+  await fs.writeFile(REPORT, `# Match report\n\n- Generated: ${data.generatedAt}\n- Window end: ${windowEnd}\n- Models: ${models.length} (matched ${matched.length}, OC-only ${ocOnly.length}, OR-only ${orOnly.length})\n- OR week coverage: ${coverage.toFixed(1)}%\n- Combined week: ${(combinedTotals.week / 1e12).toFixed(1)}T (OC ${((ocWeek / combinedTotals.week) * 100).toFixed(1)}% · OR ${((orWeekTotal / combinedTotals.week) * 100).toFixed(1)}%)\n- Errors: ${errors.length ? errors.join('; ') : 'none'}\n- Warnings: ${warnings.length}\n${warnings.map((w) => `  - ${w}`).join('\n')}\n\n## Top combined (week)\n${topCombined.join('\n')}\n`);
   console.log(`wrote ${OUT} (${models.length} models) in ${((Date.now() - t0) / 1000).toFixed(0)}s`);
   console.log(`coverage OR week ${coverage.toFixed(1)}%`);
   if (errors.length) {

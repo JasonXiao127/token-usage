@@ -12,29 +12,30 @@ export function shareOf(m: ModelRow, src: 'opencode' | 'openrouter', metric: Met
   return u.share[metric];
 }
 
-/** log2 clamped index: positive => OC over-index, negative => OR over-index */
-export function indexRatio(m: ModelRow, metric: Metric): number | null {
-  const a = shareOf(m, 'opencode', metric);
-  const b = shareOf(m, 'openrouter', metric);
-  if (a == null || b == null || a <= 0 || b <= 0) return null;
-  return Math.log2(a / b);
+/** Combined observed tokens (OpenCode + OpenRouter) for the window. */
+export function combinedTokens(m: ModelRow, metric: Metric): number | null {
+  return m.combined?.tokens[metric] ?? null;
 }
 
-export function indexLabel(m: ModelRow, metric: Metric): string {
-  const a = shareOf(m, 'opencode', metric);
-  const b = shareOf(m, 'openrouter', metric);
-  if (a != null && (b == null || b <= 0)) return 'OC only';
-  if (b != null && (a == null || a <= 0)) return 'OR only';
-  if (a == null || b == null || a <= 0 || b <= 0) return '—';
-  const r = a / b;
-  if (r >= 1) return `${r >= 100 ? Math.round(r) : r.toFixed(1)}× OC`;
-  return `${(1 / r >= 100 ? Math.round(1 / r) : (1 / r).toFixed(1))}× OR`;
+/** Share of the combined total — the global ranking metric. */
+export function combinedShare(m: ModelRow, metric: Metric): number | null {
+  return m.combined?.share[metric] ?? null;
 }
 
-export function topBy(data: DataFile, src: 'opencode' | 'openrouter', metric: Metric, n = 10): ModelRow[] {
+/** Fraction of a model's combined tokens observed on each source. Sums to 1 when combined > 0. */
+export function sourceMix(m: ModelRow, metric: Metric): { oc: number; or: number } {
+  const oc = tokensOf(m, 'opencode', metric) ?? 0;
+  const or = tokensOf(m, 'openrouter', metric) ?? 0;
+  const total = oc + or;
+  if (total <= 0) return { oc: 0, or: 0 };
+  return { oc: oc / total, or: or / total };
+}
+
+/** Global ranking: models by combined observed tokens. */
+export function topCombined(data: DataFile, metric: Metric, n = 10): ModelRow[] {
   return [...data.models]
-    .filter((m) => (tokensOf(m, src, metric) ?? 0) > 0)
-    .sort((a, b) => (tokensOf(b, src, metric) ?? 0) - (tokensOf(a, src, metric) ?? 0))
+    .filter((m) => (combinedTokens(m, metric) ?? 0) > 0)
+    .sort((a, b) => (combinedTokens(b, metric) ?? 0) - (combinedTokens(a, metric) ?? 0))
     .slice(0, n);
 }
 

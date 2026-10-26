@@ -1,13 +1,13 @@
-# Token Usage — OpenCode × OpenRouter
+# Token Usage — global model usage from OpenCode + OpenRouter
 
-Unofficial dashboard of per-model token usage across [OpenCode Data](https://opencode.ai/data/) and [OpenRouter rankings](https://openrouter.ai/rankings). Refreshed every 6 hours via GitHub Actions, hosted on GitHub Pages.
+Unofficial index of per-model token usage combining [OpenCode Data](https://opencode.ai/data/) and [OpenRouter rankings](https://openrouter.ai/rankings). Refreshed every 6 hours via GitHub Actions, hosted on GitHub Pages.
 
 Live: **https://jasonxiao127.github.io/token-usage/**
 
 ## What it answers
 
-- Which models dominate **OpenCode** vs **OpenRouter** (shares are per-ecosystem — never added together).
-- Which models over-index on one side (index ratio + log-scale scatter).
+- Which models people are picking: one global ranking by combined observed tokens (OpenCode + OpenRouter).
+- How much each source contributes, and where each model's usage was observed (provenance strips, not a contest).
 - Per-model trends, variants, pricing, context, and source links.
 
 ## Data pipeline
@@ -18,7 +18,9 @@ Live: **https://jasonxiao127.github.io/token-usage/**
 2. Lab HTML usage arrays — authoritative per-model 2-month totals (lab JSON alone misses Meta/NVIDIA/Google hidden models like `muse-spark-1.3-contributor`, `nemotron-3-ultra`).
 3. Model detail JSON for ~60 usage-heavy models (daily series, pricing, users, sessions).
 4. OpenRouter `/api/v1/models` + public rankings endpoint (`view=day|week|month`, `tokens_excl_byok`).
-5. Normalize/match (provider aliases, date-aware versions, contributor grouping, explicit alias map), compute UTC windows on complete days, validate, write `public/data/usage.json` + `reports/match-report.md`.
+5. Normalize/match (provider aliases, date-aware versions, contributor grouping, explicit alias map), compute combined observed tokens (OpenCode + OpenRouter) and UTC windows on complete days, validate, write `public/data/usage.json` + `reports/match-report.md`.
+
+Combined observed tokens are a public-data index, not audited global spend: the two feeds are separate populations that may overlap (OpenCode can route through OpenRouter), so no dedupe is possible.
 
 Validation gates: ≥60 labs, ≥400 catalog models, ≥400 OpenRouter models, lab sums within 0.1%, window end within 4 days, OpenRouter coverage ≥50% (warn <80%). Failure exits non-zero and the deploy job never runs — the last good site stays live.
 

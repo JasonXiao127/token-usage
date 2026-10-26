@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import zlib from 'node:zlib';
 
 const W = 1200, H = 630;
-// Index palette: cool stone, ink, blue + amber bars
+// Index palette: cool stone, ink bars, thin blue/amber provenance strips
 const px = Buffer.alloc(W * H * 3);
 const paper: [number, number, number] = [241, 242, 237];
 const rule: [number, number, number] = [201, 207, 199];
@@ -24,15 +24,18 @@ function rect(x0: number, y0: number, w: number, h: number, c: [number, number, 
 // masthead rule + margin rule
 rect(80, 120, 1040, 3, [22, 27, 24]);
 rect(80, 150, 3, 400, [201, 207, 199]);
-// blue bars (OpenCode) and amber bars (OpenRouter), grouped
+// combined-token bars in ink; each sits on a thin source-provenance strip
+const ink: [number, number, number] = [22, 27, 24];
 const blue: [number, number, number] = [30, 78, 140];
 const amber: [number, number, number] = [165, 90, 27];
 const baseY = 530;
-const groups: Array<[number, number]> = [[150, 300], [330, 210], [510, 150], [690, 110], [870, 80]];
-groups.forEach(([x, h], gi) => {
-  rect(x, baseY - h, 46, h, blue);
-  rect(x + 56, baseY - Math.round(h * (gi === 0 ? 0.58 : gi === 1 ? 1.42 : gi === 2 ? 0.62 : 0.4)), 46, Math.round(h * (gi === 0 ? 0.58 : gi === 1 ? 1.42 : gi === 2 ? 0.62 : 0.4)), amber);
-});
+const groups: Array<[number, number, number]> = [[150, 300, 0.58], [330, 210, 0.72], [510, 150, 0.41], [690, 110, 0.35], [870, 80, 0.22]];
+for (const [x, h, ocFrac] of groups) {
+  rect(x, baseY - h, 102, h, ink);
+  const ocW = Math.round(102 * ocFrac);
+  rect(x, baseY, ocW, 10, blue);
+  rect(x + ocW, baseY, 102 - ocW, 10, amber);
+}
 // baseline
 rect(120, baseY, 960, 2, [22, 27, 24]);
 

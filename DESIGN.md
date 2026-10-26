@@ -1,7 +1,12 @@
 # DESIGN.md — Token Usage, “Index” direction
 
 A data publication, not a dashboard. One idea carries the page: a real left
-margin for metadata, with the main column acting as an index of models.
+margin for metadata, with the main column as a global ranking of model usage.
+
+The two feeds (OpenCode, OpenRouter) are observation channels that add up to
+one combined total — never opponents. The hero is a single global ranking by
+combined token share; source identity appears only as provenance (thin
+blue/amber “where observed” strips, rail links, methodology).
 
 ## Tokens
 
@@ -56,8 +61,8 @@ meta strings — metadata lives in the rail as label/value rows.
 - Rules only where they encode structure: masthead base, stats strip
   dividers, section boundaries, table rows. No decorative hairlines.
 - The table is the centrepiece: full-bleed, sticky header, hairline rows,
-  mono numerals, status as plain text (`both`, `OC only`, `OR only`),
-  a thin index tick instead of a rounded share bar.
+  mono numerals, status as plain text (`both sources`, `OC only`, `OR only`),
+  combined tokens first, and a thin source-mix strip instead of share bars.
 - Charts sit directly on the paper with a section label and a caption.
   No card wrappers, no shadows, no glass.
 - Drawer: sidecar on paper with a 1px left rule, serif name, mono stats,
@@ -88,9 +93,11 @@ Inter/Roboto/system-only/Space Grotesk/Geist/Instrument Serif/Fraunces.
   carries information the heading does not.”
 - Mono numerals in stats/table (Vercel guidelines: tabular-nums for
   comparisons; mono only for scanned data, not labels).
-- Blue/amber data colors tie to the two sources named in the rail
-  (“OpenCode” blue, “OpenRouter” amber) — the one place color carries
-  meaning (avoid-ai-design C2/SD8: accent must have a job).
+- Blue/amber data colors mark source provenance only: the “where observed”
+  strips, rail source links, and drawer source rows (avoid-ai-design C2/SD8:
+  accent must have a job). The global numbers themselves — hero bars, table
+  lead column, stats — are neutral ink, so the page never reads as a contest
+  between the two feeds.
 - Serif display + grotesque body is the publication signal; stone ground
   is cool (`#F1F2ED`), not parchment, and the accents are primary-data
   blue/amber, not clay — keeps clear of the SD1 cream/terracotta cluster.

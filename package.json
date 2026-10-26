@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "OpenCode × OpenRouter model usage dashboard",
+  "description": "Global model usage index combining OpenCode and OpenRouter token data",
   "license": "MIT",
   "scripts": {
     "dev": "vite",

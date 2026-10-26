@@ -44,9 +44,12 @@ export default function ModelDrawer({ model, metric, onClose }: { model: ModelRo
 
         <div className="space-y-4 p-5">
           {m.stale && <p className="border-l-2 border-(--or) pl-3 text-[12px] text-(--muted)">Detail data may be stale — the model page has not updated recently. Totals reflect the last successful fetch.</p>}
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-2">
+            <div><dt className="text-[11px] text-(--muted)">Combined observed tokens</dt><dd className="num text-[24px] font-medium">{fmtTokens(m.combined.tokens[metric])}</dd><dd className="num text-[11px] text-(--muted)">share {fmtShare(m.combined.share[metric])} of combined</dd></div>
+          </dl>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2">
-            <div><dt className="text-[11px] text-(--oc)">OpenCode</dt><dd className="num text-[20px] font-medium">{fmtTokens(m.opencode?.tokens[metric])}</dd><dd className="num text-[11px] text-(--muted)">share {fmtShare(m.opencode?.share[metric])} · 2-mo {fmtTokens(m.opencode?.twoMonthTokens)}</dd></div>
-            <div><dt className="text-[11px] text-(--or)">OpenRouter · excl. BYOK</dt><dd className="num text-[20px] font-medium">{fmtTokens(m.openrouter?.tokens[metric])}</dd><dd className="num text-[11px] text-(--muted)">share {fmtShare(m.openrouter?.share[metric])}</dd></div>
+            <div><dt className="text-[11px] text-(--oc)">OpenCode</dt><dd className="num text-[20px] font-medium">{fmtTokens(m.opencode?.tokens[metric])}</dd><dd className="num text-[11px] text-(--muted)">share {fmtShare(m.opencode?.share[metric])} of OpenCode · 2-mo {fmtTokens(m.opencode?.twoMonthTokens)}</dd></div>
+            <div><dt className="text-[11px] text-(--or)">OpenRouter · excl. BYOK</dt><dd className="num text-[20px] font-medium">{fmtTokens(m.openrouter?.tokens[metric])}</dd><dd className="num text-[11px] text-(--muted)">share {fmtShare(m.openrouter?.share[metric])} of OpenRouter</dd></div>
           </dl>
           {m.opencode && <p className="num text-[11px] text-(--muted)">users {m.opencode.uniqueUsers != null ? fmtFull(m.opencode.uniqueUsers) : '—'} · sessions {m.opencode.sessions != null ? fmtFull(m.opencode.sessions) : '—'}{m.openrouter ? ` · requests ${fmtFull(m.openrouter.requests[metric])}` : ''}</p>}
 

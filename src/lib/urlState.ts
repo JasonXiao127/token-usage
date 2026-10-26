@@ -24,7 +24,7 @@ export const DEFAULT_STATE: DashboardState = {
   hasUsage: true,
   showAll: false,
   groupVariants: true,
-  sort: 'oc',
+  sort: 'combined',
   dir: 'desc',
   page: 1,
   model: '',
@@ -46,7 +46,7 @@ export function parseState(search: string): DashboardState {
     hasUsage: p.get('usage') !== '0',
     showAll: p.get('all') === '1',
     groupVariants: p.get('grp') !== '0',
-    sort: p.get('sort') || 'oc',
+    sort: p.get('sort') || 'combined',
     dir: dir === 'asc' ? 'asc' : 'desc',
     page: isFinite(page) && page >= 1 ? page : 1,
     model: p.get('model') || '',
@@ -63,7 +63,7 @@ export function serializeState(s: DashboardState): string {
   if (!s.hasUsage) p.set('usage', '0');
   if (s.showAll) p.set('all', '1');
   if (!s.groupVariants) p.set('grp', '0');
-  if (s.sort !== 'oc') p.set('sort', s.sort);
+  if (s.sort !== 'combined') p.set('sort', s.sort);
   if (s.dir !== 'desc') p.set('dir', s.dir);
   if (s.page !== 1) p.set('page', String(s.page));
   if (s.model) p.set('model', s.model);

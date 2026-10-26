@@ -88,6 +88,19 @@ export interface OpenrouterUsage {
   matchType: 'exact' | 'alias' | 'name' | 'none';
 }
 
+export interface CombinedUsage {
+  /** Combined observed tokens: OpenCode + OpenRouter per window. */
+  tokens: TokenSet;
+  /** Share of the combined total — the global ranking metric. */
+  share: ShareSet;
+  /** WoW change derived from both sources' reported changes. Null when either side is unknown. */
+  changeWeek: number | null;
+  changeIsNew?: boolean;
+  /** Whether the model has usage on each source (any window). */
+  opencode: boolean;
+  openrouter: boolean;
+}
+
 export interface ModelRow {
   key: string;
   name: string;
@@ -97,6 +110,7 @@ export interface ModelRow {
   meta: ModelMeta;
   opencode: OpencodeUsage | null;
   openrouter: OpenrouterUsage | null;
+  combined: CombinedUsage;
   status: 'matched' | 'opencode-only' | 'openrouter-only';
   stale: boolean;
 }
@@ -117,6 +131,7 @@ export interface DataFile {
   totals: {
     opencode: TokenSet;
     openrouter: TokenSet;
+    combined: TokenSet;
     opencodeModelsWithUsage: TokenSet;
     openrouterModelsWithUsage: TokenSet;
     matchedModels: number;
@@ -133,6 +148,6 @@ export interface DataFile {
     unmatchedTop: Array<{ name: string; tokensWeek: number; reason: string }>;
     warnings: string[];
   };
-  labs: Array<{ id: string; name: string; opencodeTokensWeek: number; openrouterTokensWeek: number; models: number }>;
+  labs: Array<{ id: string; name: string; opencodeTokensWeek: number; openrouterTokensWeek: number; combinedTokensWeek: number; models: number }>;
   models: ModelRow[];
 }
