@@ -17,7 +17,7 @@ blue/amber “where observed” strips, rail links, methodology).
 | paper-deep (drawer, header wash) | `#E9EBE3` |
 | ink | `#161B18` |
 | soft ink | `#3D453F` |
-| muted | `#5F6860` |
+| muted | `#586159` |
 | rule | `#C9CFC7` |
 | OpenCode (data blue) | `#1E4E8C` |
 | OpenRouter (amber) | `#A55A1B` |
@@ -47,26 +47,54 @@ moss, ochre, clay, steel, plum, sage, rust. Never a rainbow, never neon.
 - Numbers: **IBM Plex Mono** 400/500 — tokens, shares, dates, ids.
   Mono is for tabular data a reader scans, never decoration.
 
-Scale: masthead 20/500 serif, lede 17–19 serif, section titles 13/600 sans,
-body 13 sans, small labels 11–12 sans, numbers tabular everywhere.
+Scale: masthead 22/500 serif, lede 30/34/38 serif, section titles 15/600 sans,
+body 14–15 sans, small labels 12 sans, numbers tabular everywhere.
+Type utilities live in `src/index.css` (`.t-masthead`, `.t-hero`, `.t-stat`,
+`.t-data`, `.t-label`, `.t-meta`, `.t-note`, `.t-input`): base is the wide-index
+scale, with one discrete integer step at 2xl (≥1536px) — data 14→15,
+hero 34→38. No `clamp()`, no fractional px, so mono numerals stay crisp.
+Form controls use `.t-input` (16px on phones so iOS does not zoom on focus,
+14px from sm).
 
 Sentence case everywhere. No tracked all-caps eyebrows. No `A · B · C`
 meta strings — metadata lives in the rail as label/value rows.
 
 ## Layout
 
-- Max width 1400px. Desktop: 240px metadata rail + main column.
-- The rail holds: window, sources, coverage, contents (anchor nav),
-  download, repo link. It is the only navigation chrome.
+- Max width 1720px. Rail 240px visible at ≥1440px only; below that the main
+  column uses the full width. Gutters 24px, 32px at ≥1440. Main gaps 32px,
+  40px at ≥1440. At 1440 the main is ~1088px; at 1720 it is ~1368px.
+- The rail holds: window, sources, coverage (98.5% OC / 93.7% OR matched),
+  contents (anchor nav), download, repo link. It is the only navigation chrome.
+- Window control sits above the lede: label + 1 day / 7 days / 30 days tabs
+  left, date range + “complete UTC days” right (wraps on phones).
+- Top band and overview are two columns at ≥1200px (`1.55fr / 1fr`): lede +
+  key-figures ledger, then global ranking + (lab mix, largest moves). Stacked
+  below 1200; the stats strip replaces the ledger there.
+- The ranking chart appears once (top 12). There is no second “Top models”
+  list. Bars and where-observed strips share the same proportional width;
+  a full-width strip is a bug.
+- Key figures: 28px values, 12px labels; lede 30/34/38 with 30ch cap.
 - Rules only where they encode structure: masthead base, stats strip
   dividers, section boundaries, table rows. No decorative hairlines.
-- The table is the centrepiece: full-bleed, sticky header, hairline rows,
-  mono numerals, status as plain text (`both sources`, `OC only`, `OR only`),
-  combined tokens first, and a thin source-mix strip instead of share bars.
+- The table is the centrepiece: 7 columns (Observed dropped), 14px type,
+  right-aligned numbers, sticky header, 50 rows default with a 25/50/100/250
+  chooser, container-query cards below ~1000px. Model column max 300px.
+  Combined tokens first. Provenance lives in the ranking strips, the lab
+  legend, the rail links and methodology — never as a table bar contest.
 - Charts sit directly on the paper with a section label and a caption.
   No card wrappers, no shadows, no glass.
-- Drawer: sidecar on paper with a 1px left rule, serif name, mono stats,
-  plain sections. No nested cards.
+- Drawer: 640px sidecar on paper with a 1px left rule, sticky header,
+  26px serif name, 28px combined value, 220px chart, plain sections.
+
+## Interaction
+
+One rule everywhere: pointer cursor on every enabled button, flat
+`paper-deep` wash on hover, 140ms color/opacity transition. No lift, scale,
+shadow, rounded chip or accent bar. Focus-visible keeps the 2px `--oc`
+outline. `prefers-reduced-motion` makes it instant. Applies to ranking rows,
+movers rows, table rows/cards, lab legend chips, lab bar segments (opacity),
+toolbar/pagination/Clear, header icon buttons, drawer links and close.
 
 ## Motion
 

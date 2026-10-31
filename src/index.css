@@ -8,7 +8,7 @@
   --paper-deep: #E9EBE3;
   --ink: #161B18;
   --ink-soft: #3D453F;
-  --muted: #5F6860;
+  --muted: #586159;
   --rule: #C9CFC7;
   --oc: #1E4E8C;
   --or: #A55A1B;
@@ -42,17 +42,71 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
+
+p { text-wrap: pretty; }
 
 .font-display { font-family: var(--font-display); }
 .num, .tabular {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
+}
+
+/* Type scale — base renders exactly as today at 1440; one discrete integer
+   step at 2xl (≥1536px) so mono numerals stay crisp. No clamp(), no
+   fractional px. Display bumps only for hero/stats/masthead; data +1px. */
+.t-masthead { font-size: 22px; }
+.t-hero { font-size: 30px; }
+.t-stat { font-size: 28px; }
+.t-data { font-size: 14px; }
+.t-label { font-size: 12px; }
+.t-meta { font-size: 13px; }
+.t-note { font-size: 13.5px; }
+/* Form controls stay 16px on phones so iOS does not zoom on focus. */
+.t-input { font-size: 16px; }
+@media (min-width: 640px) {
+  .t-hero { font-size: 34px; }
+  .t-input { font-size: 14px; }
+}
+@media (min-width: 1536px) {
+  .t-masthead { font-size: 22px; }
+  .t-hero { font-size: 38px; }
+  .t-stat { font-size: 28px; }
+  .t-data { font-size: 15px; }
+  .t-label { font-size: 12px; }
+  .t-meta { font-size: 13px; }
+  .t-note { font-size: 13.5px; }
+  .t-input { font-size: 14px; }
+}
+
+/* one interaction rule: pointer + flat wash + fast color transition */
+button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: pointer; }
+.tu-row-hover { transition: background-color 140ms ease-out, color 140ms ease-out, opacity 140ms ease-out; }
+@media (prefers-reduced-motion: no-preference) {
+  .tu-row-hover { transition: background-color 140ms ease-out, color 140ms ease-out, opacity 140ms ease-out; }
+}
+
+/* table shell becomes the container query context; table ↔ cards at ~1000px */
+.tu-table-shell { container-type: inline-size; }
+.tu-table-view { display: none; }
+.tu-cards-view { display: block; }
+@container (min-width: 1000px) {
+  .tu-table-view { display: block; }
+  .tu-cards-view { display: none; }
+}
+/* sticky header needs separated borders to keep its rule */
+.tu-sticky-table { border-collapse: separate; border-spacing: 0; }
+.tu-sticky-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+  z-index: 1;
+  box-shadow: inset 0 -1px 0 var(--ink);
 }
 
 /* visible keyboard focus everywhere */
@@ -75,6 +129,12 @@ h1, h2, h3 { text-wrap: balance; }
   position: absolute;
   left: 0; right: 0; bottom: -9px;
   border-bottom: 2px solid var(--ink);
+}
+/* inline tablist (ranking header): no rule band, underline sits tight */
+.tu-tablist-inline .tu-tab { padding-bottom: 4px !important; }
+.tu-tablist-inline .tu-tab[aria-selected="true"]::after { bottom: 0 !important; }
+@media (max-width: 639px) {
+  .tu-tablist-inline .tu-tab { padding-bottom: 2px !important; }
 }
 
 /* drawer + table transitions (action-answering only) */

@@ -1,6 +1,6 @@
 export default function Footer() {
   return (
-    <footer className="border-t border-(--rule) py-4 text-[11px] leading-relaxed text-(--muted)">
+    <footer className="t-meta border-t border-(--rule) py-4 leading-relaxed text-(--muted)">
       <p>Unofficial index. Not affiliated with OpenCode or OpenRouter.</p>
       <p className="mt-1">
         Sources: <a className="underline-offset-2 hover:underline" href="https://opencode.ai/data/">OpenCode Data</a> ·{' '}

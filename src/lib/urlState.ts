@@ -12,8 +12,11 @@ export interface DashboardState {
   sort: string;
   dir: 'asc' | 'desc';
   page: number;
+  perPage: number;
   model: string; // open drawer key
 }
+
+export const PER_PAGE_OPTIONS = [25, 50, 100, 250] as const;
 
 export const DEFAULT_STATE: DashboardState = {
   metric: 'week',
@@ -27,6 +30,7 @@ export const DEFAULT_STATE: DashboardState = {
   sort: 'combined',
   dir: 'desc',
   page: 1,
+  perPage: 50,
   model: '',
 };
 
@@ -37,6 +41,8 @@ export function parseState(search: string): DashboardState {
   const metric = p.get('metric');
   const dir = p.get('dir');
   const page = parseInt(p.get('page') || '1', 10);
+  const perPageRaw = parseInt(p.get('rows') || '50', 10);
+  const perPage = [25, 50, 100, 250].includes(perPageRaw) ? perPageRaw : 50;
   return {
     metric: VALID_METRICS.includes(metric as Metric) ? (metric as Metric) : 'week',
     q: p.get('q') || '',
@@ -49,6 +55,7 @@ export function parseState(search: string): DashboardState {
     sort: p.get('sort') || 'combined',
     dir: dir === 'asc' ? 'asc' : 'desc',
     page: isFinite(page) && page >= 1 ? page : 1,
+    perPage,
     model: p.get('model') || '',
   };
 }
@@ -66,6 +73,7 @@ export function serializeState(s: DashboardState): string {
   if (s.sort !== 'combined') p.set('sort', s.sort);
   if (s.dir !== 'desc') p.set('dir', s.dir);
   if (s.page !== 1) p.set('page', String(s.page));
+  if (s.perPage !== 50) p.set('rows', String(s.perPage));
   if (s.model) p.set('model', s.model);
   const str = p.toString();
   return str ? '?' + str : '';

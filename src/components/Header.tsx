@@ -21,28 +21,28 @@ export default function Header({ generatedAt, windowEnd, ocUpdated, orAsOf }: { 
   const [, setTheme, dark] = useTheme();
   return (
     <header className="border-b border-(--rule)">
-      <div className="mx-auto flex max-w-[1400px] flex-wrap items-baseline gap-x-4 gap-y-1 px-4 py-4 sm:px-6">
-        <p className="font-display text-[20px] font-medium leading-none tracking-[-0.01em]">
+      <div className="mx-auto flex max-w-[1400px] flex-wrap items-baseline gap-x-4 gap-y-1 px-4 py-4 sm:px-6 min-[1440px]:max-w-[1720px] min-[1440px]:px-8">
+        <p className="font-display t-masthead font-medium leading-none tracking-[-0.01em]">
           Token Usage
         </p>
-        <p className="text-[11px] text-(--muted)">
+        <p className="t-label text-(--muted)">
           Global model usage · OpenCode + OpenRouter
         </p>
         <div className="ml-auto flex items-center gap-1 text-(--muted)">
-          <span className="num hidden text-[11px] lg:inline" title={`Fetched ${fmtDateUTC(generatedAt)}`}>
-            {windowEnd} · OC {ocUpdated.slice(0, 16).replace('T', ' ')} UTC · OR {orAsOf}
+          <span className="num t-label hidden lg:inline" title={`Fetched ${fmtDateUTC(generatedAt)}`}>
+            Updated {generatedAt.slice(0, 16).replace('T', ' ')} UTC
           </span>
           <button
             onClick={() => setTheme(dark ? 'light' : 'dark')}
-            className="p-2 hover:text-(--ink)"
+            className="tu-row-hover p-2 hover:bg-(--paper-deep) hover:text-(--ink)"
             aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {dark ? <Sun size={15} /> : <Moon size={15} />}
           </button>
-          <a href={`${import.meta.env.BASE_URL}data/usage.json`} download className="p-2 hover:text-(--ink)" aria-label="Download raw JSON" title="Download raw JSON">
+          <a href={`${import.meta.env.BASE_URL}data/usage.json`} download className="tu-row-hover p-2 hover:bg-(--paper-deep) hover:text-(--ink)" aria-label="Download raw JSON" title="Download raw JSON">
             <Download size={15} />
           </a>
-          <a href="https://github.com/JasonXiao127/token-usage" target="_blank" rel="noreferrer" className="p-2 hover:text-(--ink)" aria-label="GitHub repository">
+          <a href="https://github.com/JasonXiao127/token-usage" target="_blank" rel="noreferrer" className="tu-row-hover p-2 hover:bg-(--paper-deep) hover:text-(--ink)" aria-label="GitHub repository">
             <Github size={15} />
           </a>
         </div>
