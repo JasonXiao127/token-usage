@@ -73,6 +73,7 @@ export default function ModelTable({ metric, rows, sort, dir, onSort, onSelect, 
             {pageRows.map((m) => {
               const oc = tokensOf(m, 'opencode', metric);
               const or = tokensOf(m, 'openrouter', metric);
+              const mod = modalityOf(m);
               return (
                 <tr key={m.key} onClick={() => onSelect(m.key)} onKeyDown={(e) => e.key === 'Enter' && onSelect(m.key)} tabIndex={0} className="tu-row-hover cursor-pointer border-b border-(--rule) hover:bg-(--paper-deep)">
                   <td className="max-w-[300px] py-2.5 pl-0 pr-4">
@@ -80,7 +81,7 @@ export default function ModelTable({ metric, rows, sort, dir, onSort, onSelect, 
                       <span className="mt-1 h-[7px] w-[7px] shrink-0 self-center" style={{ background: labColor(m.lab) }} aria-hidden="true" />
                       <span className="min-w-0">
                         <span className="block truncate text-[14px] font-medium" title={m.name}>{m.name}</span>
-                        <span className="block truncate text-[12.5px] text-(--muted)">{m.labName} · {modalityOf(m)}{m.stale ? ' · stale' : ''}</span>
+                        <span className="block truncate text-[12.5px] text-(--muted)">{mod ? `${m.labName} · ${mod}` : m.labName}{m.stale ? ' · stale' : ''}</span>
                       </span>
                     </span>
                   </td>
@@ -109,6 +110,7 @@ export default function ModelTable({ metric, rows, sort, dir, onSort, onSelect, 
       <div className="tu-cards-view">
         {pageRows.map((m) => {
           const mix = sourceMix(m, metric);
+          const mod = modalityOf(m);
           return (
             <button key={m.key} onClick={() => onSelect(m.key)} className="tu-row-hover block w-full border-b border-(--rule) py-3 text-left hover:bg-(--paper-deep)">
               <span className="flex items-baseline gap-2">
@@ -124,7 +126,7 @@ export default function ModelTable({ metric, rows, sort, dir, onSort, onSelect, 
                 <span>Combined <b>{fmtTokens(combinedTokens(m, metric))}</b> <span className="text-(--muted)">{fmtShare(combinedShare(m, metric))}</span></span>
                 <span>OC <b>{fmtTokens(tokensOf(m, 'opencode', metric))}</b> · OR <b>{fmtTokens(tokensOf(m, 'openrouter', metric))}</b></span>
               </span>
-              <span className="t-label mt-0.5 text-(--muted)">{m.labName} · {modalityOf(m)}</span>
+              <span className="t-label mt-0.5 text-(--muted)">{mod ? `${m.labName} · ${mod}` : m.labName}</span>
             </button>
           );
         })}

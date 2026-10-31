@@ -3,6 +3,7 @@ import { X, ExternalLink } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import type { Metric, ModelRow } from '../../shared/types';
 import { fmtTokens, fmtShare, fmtPrice, fmtCtx, fmtFull } from '../lib/format';
+import { inputLine, outputLine } from '../lib/derive';
 import { StatusText } from './ModelTable';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -76,6 +77,17 @@ export default function ModelDrawer({ model, metric, onClose }: { model: ModelRo
               <dt className="text-(--muted)">Knowledge</dt><dd className="text-right">{m.meta.knowledgeCutoff || '—'}</dd>
               <dt className="text-(--muted)">Reasoning</dt><dd className="text-right">{m.meta.reasoning == null ? '—' : m.meta.reasoning ? 'yes' : 'no'}</dd>
               <dt className="text-(--muted)">Open weights</dt><dd className="text-right">{m.meta.openWeights == null ? '—' : m.meta.openWeights ? 'yes' : 'no'}</dd>
+              {(() => {
+                const ins = inputLine(m);
+                const outs = outputLine(m);
+                const showMods = ins.some((k) => k !== 'text') || outs.some((k) => k !== 'text');
+                return showMods && (
+                  <>
+                    <dt className="text-(--muted)">Accepts</dt><dd className="text-right">{ins.join(', ') || '—'}</dd>
+                    <dt className="text-(--muted)">Generates</dt><dd className="text-right">{outs.join(', ') || '—'}</dd>
+                  </>
+                );
+              })()}
             </dl>
           </Section>
 

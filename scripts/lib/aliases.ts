@@ -1,15 +1,22 @@
-// Canonical provider aliases: OpenRouter provider -> OpenCode lab id
+// Canonical provider aliases: normalized OpenRouter provider -> OpenCode lab id.
+// Keys MUST already be normalized (lowercase alphanumeric, no dashes):
+// every lookup goes through normalize(), which strips dashes, so a key
+// like 'z-ai' would never match and silently split the lab.
 export const PROVIDER_ALIAS: Record<string, string> = {
-  'z-ai': 'zhipuai',
+  'zai': 'zhipuai',
   'zhipu': 'zhipuai',
   'qwen': 'alibaba',
-  'meta-llama': 'meta',
-  'x-ai': 'xai',
+  'metallama': 'meta',
+  'xai': 'xai',
   'mistralai': 'mistral',
   'bytedance': 'bytedance-seed',
-  'ibm-granite': 'ibm',
+  'bytedanceseed': 'bytedance-seed',
+  'ibmgranite': 'ibm',
   'moonshot': 'moonshotai',
   'moonshotai': 'moonshotai',
+  'aionlabs': 'aion-labs',
+  'blackforestlabs': 'black-forest-labs',
+  'nexagi': 'nex-agi',
 };
 
 // Explicit model-level aliases: OpenRouter permaslug base -> OpenCode canonical group key

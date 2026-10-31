@@ -2,7 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fetchIndex, fetchLabs, fetchLabList, fetchLabUsageHtml, fetchDetails, type OcLab, type OcDetail } from './lib/opencode.ts';
 import { fetchCatalog, fetchRankings, rankDate, rankTokensExclByok, type OrCatalogModel, type OrRankRow } from './lib/openrouter.ts';
-import { buildGroups, matchOrBase, type CatalogEntry, type OrBase } from './lib/match.ts';
+import { buildGroups, groupKeyFor, matchOrBase, type CatalogEntry, type OrBase } from './lib/match.ts';
+import { prettyLabName, catalogArchFor } from './lib/labs.ts';
 import { combinedUsage } from './lib/combined.ts';
 import { normalize, normalizeSlug, splitId, stripVersion, PROVIDER_ALIAS } from './lib/aliases.ts';
 import type { DataFile, ModelRow, DailyPoint } from '../shared/types.ts';
@@ -44,9 +45,18 @@ function cleanBase(lab: string, rawModel: string, catalogBases?: Set<string>): s
     }
     for (const p of prefixes) {
       if (!p) continue;
-      if (slug.toLowerCase().startsWith(p + '-') || normalize(slug).startsWith(p)) {
+      // slug-space match (p keeps dashes, e.g. 'aion-labs')
+      if (slug.toLowerCase().startsWith(p + '-')) {
         const stripped = slug.slice(p.length + 1);
         if (stripped && catalogBases.has(`${labN}/${normalize(stripped)}`)) return stripped;
+        continue;
+      }
+      // normalize-space match (p is dashless, e.g. 'aionlabs'): slice in the
+      // same representation so the result cannot start mid-separator
+      const nslug = normalize(slug);
+      if (nslug.startsWith(p)) {
+        const stripped = nslug.slice(p.length);
+        if (stripped && catalogBases.has(`${labN}/${stripped}`)) return stripped;
       }
     }
   }
@@ -160,16 +170,19 @@ async function main() {
   console.log(`hidden usage models: ${hidden.length}`);
 
   const groups = buildGroups(catalog, hidden.map((h) => ({ ...h, model: h.model })));
-  // leaderboard-only models (e.g. unknown/iceman) have no lab page: seed groups
+  // leaderboard-only models (e.g. unknown/iceman) have no lab page: seed groups.
+  // groupKeyFor keeps variant spellings on their canonical group instead of
+  // spawning duplicate zero-usage rows.
   for (const m of ((index.leaderboard.pastWeek as Array<{ model: string; name: string; lab: string; page: string; tokens: number }>) || [])) {
     const slug = m.page.replace('https://opencode.ai/data/', '');
     if (!slug || slug.split('/').length !== 2) continue;
     const [ll, ...rest] = slug.split('/');
     const base = rest.join('/');
-    const key = `${normalize(ll!)}/${normalize(base)}`;
+    const key = groupKeyFor(normalize(ll!), normalize(base));
     if (!groups.has(key)) {
+      const labName = labs[ll!]?.lab?.name || labNameById.get(ll!) || (m.lab && m.lab !== 'unknown' ? m.lab[0]!.toUpperCase() + m.lab.slice(1) : 'Unknown');
       groups.set(key, {
-        key, lab: ll!, labName: m.lab && m.lab !== 'unknown' ? m.lab[0]!.toUpperCase() + m.lab.slice(1) : 'Unknown',
+        key, lab: ll!, labName,
         displayName: m.name, modelIds: [], slugs: [slug],
         twoMonthTokens: 0, releaseDate: null, contextTokens: null, outputTokens: null,
         priceIn: null, priceOut: null, priceCached: null, priceWrite: null,
@@ -183,20 +196,8 @@ async function main() {
   for (const r of usageRowList) {
     if (r.excluded) continue;
     const cleaned = cleanBase(r.lab, r.model, catalogBases);
-    // find group key by replicating buildGroups key logic (import not exported; recompute)
-    let key = `${normalize(r.lab)}/${normalize(cleaned)}`;
-    // variant group mapping (must stay in sync with match.ts)
-    const VG: Array<[string, string[]]> = [
-      ['meta/muse-spark-1.3', ['muse-spark-1.3', 'muse-spark-1.3-contributor']],
-      ['meta/muse-spark-1.2', ['muse-spark-1.2', 'muse-spark-1.2-contributor']],
-      ['google/gemini-4-argon', ['gemini-4-argon', 'gemini-4-argon-contributor']],
-      ['nvidia/nemotron-3-ultra', ['nemotron-3-ultra', 'nemotron-3-ultra-550b-a55b']],
-      ['nvidia/nemotron-3.5-super-vl', ['nemotron-3.5-super-vl', 'nemotron-3.5-super-vl-120b-a12b']],
-      ['deepseek/deepseek-v4.1-flash', ['deepseek-v4.1-flash', 'deepseek-v4p1-flash']],
-    ];
-    for (const [gk, bases] of VG) {
-      if (bases.map((b) => normalize(b)).includes(normalize(cleaned)) && normalize(r.lab) === normalize(gk.split('/')[0]!)) { const [gl, gb] = gk.split('/'); key = `${normalize(gl!)}/${normalize(gb!)}`; break; }
-    }
+    // single source of truth for variant grouping lives in match.ts
+    const key = groupKeyFor(normalize(r.lab), normalize(cleaned));
     twoMonthByGroup.set(key, (twoMonthByGroup.get(key) || 0) + r.tokens);
   }
   for (const [key, g] of groups) {
@@ -229,19 +230,9 @@ async function main() {
       const sslug = slug.split('/').slice(1).join('/');
       key = `${normalize(lab)}/${normalize(cleanBase(lab, sslug, catalogBases))}`;
     }
-    // variant remap
-    const VG2: Array<[string, string[]]> = [
-      ['meta/muse-spark-1.3', ['muse-spark-1.3', 'muse-spark-1.3-contributor']],
-      ['meta/muse-spark-1.2', ['muse-spark-1.2', 'muse-spark-1.2-contributor']],
-      ['google/gemini-4-argon', ['gemini-4-argon', 'gemini-4-argon-contributor']],
-      ['nvidia/nemotron-3-ultra', ['nemotron-3-ultra', 'nemotron-3-ultra-550b-a55b']],
-      ['nvidia/nemotron-3.5-super-vl', ['nemotron-3.5-super-vl', 'nemotron-3.5-super-vl-120b-a12b']],
-      ['deepseek/deepseek-v4.1-flash', ['deepseek-v4.1-flash', 'deepseek-v4p1-flash']],
-    ];
-    for (const [gk, bases] of VG2) {
-      const tail = key.split('/')[1] || '';
-      if (bases.map((b) => normalize(b)).includes(tail) && normalize(lab) === normalize(gk.split('/')[0]!)) { const [gl, gb] = gk.split('/'); key = `${normalize(gl!)}/${normalize(gb!)}`; break; }
-    }
+    // variant remap (single source of truth: VARIANT_GROUPS in match.ts)
+    const tail = key.split('/')[1] || '';
+    key = groupKeyFor(normalize(lab), tail);
     if (!groups.has(key)) { warnings.push(`detail ${slug} (${mid}) -> no group ${key}`); continue; }
     if (!detailByGroup.has(key)) detailByGroup.set(key, []);
     detailByGroup.get(key)!.push(d);
@@ -277,6 +268,20 @@ async function main() {
   // group OR variants by base (strip 8-digit date suffix only for grouping display)
   const orBases = new Map<string, OrBase>();
   const allPermas = new Set<string>([...dayAgg.keys(), ...weekAgg.keys(), ...monthAgg.keys()]);
+  // Drop ranking rows whose permaslug has no provider prefix (e.g. bare
+  // 'qwen3-embedding-8b'): no lab can be attributed and the OR catalog has
+  // no entry to resolve one. Warn only when real tokens are skipped so a
+  // zero-token anomaly row doesn't nag on every run.
+  for (const vp of [...allPermas]) {
+    const basePerma = vp.split(':')[0]!;
+    const segs = basePerma.split('/');
+    if (!basePerma || !basePerma.includes('/') || !segs[0] || !segs.slice(1).join('/')) {
+      const skipped = (dayAgg.get(vp)?.tokens || 0) + (weekAgg.get(vp)?.tokens || 0) + (monthAgg.get(vp)?.tokens || 0);
+      if (skipped > 0) warnings.push(`OR ranking permaslug without provider: ${JSON.stringify(vp)} (${skipped} tokens skipped, cannot attribute a lab)`);
+      allPermas.delete(vp);
+      dayAgg.delete(vp); weekAgg.delete(vp); monthAgg.delete(vp);
+    }
+  }
   for (const vp of allPermas) {
     const basePerma = vp.split(':')[0]!;
     const [prov, ...rest] = basePerma.split('/');
@@ -421,6 +426,9 @@ async function main() {
 
   const labNameOf = (lab: string): string => labs[lab]?.lab?.name || labNameById.get(lab) || lab;
 
+  /** Display name for a lab id (shared pure helper; known OC name wins). */
+  const prettyName = (labId: string, prov: string): string => prettyLabName(labId, prov, labNameOf(labId));
+
   for (const key of allKeys) {
     if (key.startsWith('OR:')) {
       const orKey = key.slice(3);
@@ -437,10 +445,10 @@ async function main() {
       models.push({
         key: `or:${normalize(orKey)}`,
         name: cat?.name?.replace(/^[^:]+:\s*/, '') || orKey.split('/').slice(1).join('/') || orKey,
-        lab: labId, labName: labNameOf(labId) === labId ? (cat ? prov! : labId) : labNameOf(labId),
+        lab: labId, labName: prettyName(labId, prov!),
         modalities: [...(cat?.architecture?.input_modalities || []), ...(cat?.architecture?.output_modalities || [])],
         meta: {
-          name: cat?.name || orKey, lab: labId, labName: labNameOf(labId),
+          name: cat?.name || orKey, lab: labId, labName: prettyName(labId, prov!),
           contextTokens: cat?.context_length ?? null, outputTokens: cat?.top_provider?.max_completion_tokens ?? null,
           releaseDate: null, knowledgeCutoff: cat?.knowledge_cutoff ?? null,
           inputModalities: cat?.architecture?.input_modalities || [], outputModalities: cat?.architecture?.output_modalities || [],
@@ -502,6 +510,15 @@ async function main() {
     }
     const dets = detailByGroup.get(key) || [];
     const primary = dets.slice().sort((a, b) => b.usage.tokens - a.usage.tokens)[0];
+    // OR catalog modality fallback: OpenCode detail pages often omit
+    // modalities while the OR catalog has them. OpenCode stays authoritative.
+    const ocIn = primary?.model.inputModalities || [];
+    const ocOut = primary?.model.outputModalities || [];
+    const orArch = (!ocIn.length || !ocOut.length) && orList.length
+      ? catalogArchFor(orCatById, orList[0]!)
+      : null;
+    const inMods = ocIn.length ? ocIn : (orArch?.input || []);
+    const outMods = ocOut.length ? ocOut : (orArch?.output || []);
     const daily = oc?.daily || [];
     const w = oc?.w ?? null, mth = oc?.m ?? null;
     const d0 = day ? (daily.find((x) => x.date === day)?.tokens ?? null) : null;
@@ -544,12 +561,12 @@ async function main() {
     models.push({
       key: `oc:${key}`,
       name: g.displayName, lab: g.lab, labName: g.labName,
-      modalities: primary ? [...primary.model.inputModalities, ...primary.model.outputModalities] : [],
+      modalities: [...inMods, ...outMods],
       meta: {
         name: g.displayName, lab: g.lab, labName: g.labName,
         contextTokens: primary?.model.contextTokens ?? g.contextTokens, outputTokens: primary?.model.outputTokens ?? g.outputTokens,
         releaseDate: primary?.model.releaseDate ?? g.releaseDate, knowledgeCutoff: primary?.model.knowledgeCutoff ?? null,
-        inputModalities: primary?.model.inputModalities || [], outputModalities: primary?.model.outputModalities || [],
+        inputModalities: inMods, outputModalities: outMods,
         reasoning: primary?.model.reasoning ?? null, toolCall: primary?.model.toolCall ?? null, openWeights: primary?.model.openWeights ?? null,
         pricing: primary?.model.priceUsdPer1M ? { input: primary.model.priceUsdPer1M.input, output: primary.model.priceUsdPer1M.output, cachedInput: primary.model.priceUsdPer1M.cachedInput, cacheWrite: primary.model.priceUsdPer1M.cacheWrite } : (g.priceIn != null ? { input: g.priceIn, output: g.priceOut, cachedInput: g.priceCached, cacheWrite: g.priceWrite } : null),
         orPricing: hasOr ? { input: orP.input, output: orP.output, cachedInput: orP.cached, cacheWrite: null } : null,
@@ -611,8 +628,12 @@ async function main() {
     if (!m.openrouter) continue;
     orWeekByLab.set(m.lab, (orWeekByLab.get(m.lab) || 0) + (m.openrouter.tokens.week || 0));
   }
+  // labs table: display names come from the model rows so the filter dropdown
+  // matches what the table shows (raw ids like 'typesafe' never leak here)
+  const labDisplay = new Map<string, string>();
+  for (const m of models) if (!labDisplay.has(m.lab)) labDisplay.set(m.lab, m.labName);
   const labsOut = labIdsAll.map((id) => ({
-    id, name: labNameOf(id),
+    id, name: labDisplay.get(id) || labNameOf(id),
     opencodeTokensWeek: ocWeekByLab.get(id) || 0,
     openrouterTokensWeek: orWeekByLab.get(id) || 0,
     combinedTokensWeek: (ocWeekByLab.get(id) || 0) + (orWeekByLab.get(id) || 0),
@@ -624,7 +645,7 @@ async function main() {
   const orOnly = models.filter((m) => m.status === 'openrouter-only');
   const orMatchedTokensWeek = matched.reduce((s, m) => s + (m.openrouter?.tokens.week || 0), 0);
   const ocMatchedTokensWeek = matched.reduce((s, m) => s + (m.opencode?.tokens.week || 0), 0);
-  const unmatchedTop = orOnly.slice().sort((a, b) => (b.openrouter?.tokens.week || 0) - (a.openrouter?.tokens.week || 0)).slice(0, 10).map((m) => ({ name: `${m.lab}/${m.name}`, tokensWeek: m.openrouter?.tokens.week || 0, reason: 'OpenRouter-only' }));
+  const unmatchedTop = orOnly.slice().sort((a, b) => (b.openrouter?.tokens.week || 0) - (a.openrouter?.tokens.week || 0)).slice(0, 10).map((m) => ({ name: `${m.labName}/${m.name}`, tokensWeek: m.openrouter?.tokens.week || 0, reason: 'OpenRouter-only' }));
 
   // validation
   const errors: string[] = [];

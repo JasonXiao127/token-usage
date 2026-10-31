@@ -82,12 +82,46 @@ export function largestMoves(data: DataFile, minShare = 0.005, n = 6): ModelRow[
     .slice(0, n);
 }
 
-export function modalityOf(m: ModelRow): string {
-  const mods = new Set([...(m.meta.inputModalities || []), ...(m.meta.outputModalities || [])].map((s) => s.toLowerCase()));
-  if (mods.has('video') || mods.has('audio')) return mods.has('video') ? 'Video' : 'Audio';
-  if (mods.has('image')) return 'Image';
-  if (mods.has('pdf')) return 'PDF';
-  if (mods.has('text') && mods.size === 1) return 'Text';
-  if (mods.size === 0) return 'Other';
-  return 'Text+';
+/**
+ * What the model generates (output modalities), not what it accepts.
+ * Input-only support such as image/video understanding in a text chatbot
+ * must not relabel it as Image/Video. Null when the sources report no
+ * output modalities — callers should omit the label rather than guess.
+ */
+export function modalityOf(m: ModelRow): string | null {
+  const out = new Set((m.meta.outputModalities || []).map((s) => s.trim().toLowerCase()).filter(Boolean));
+  if (out.has('video')) return 'Video';
+  if (out.has('image')) return 'Image';
+  if (out.has('audio')) return 'Audio';
+  if (out.has('text')) return 'Text';
+  return null;
+}
+
+/** Non-text input capabilities worth surfacing (e.g. image/video/PDF understanding in a text model). */
+export function extraInputs(m: ModelRow): string[] {
+  return inputLine(m).filter((k) => k !== 'text');
+}
+
+/** Deduped lowercase input modalities, text first. */
+export function inputLine(m: ModelRow): string[] {
+  const rest: string[] = [];
+  let hasText = false;
+  for (const s of m.meta.inputModalities || []) {
+    const k = s.trim().toLowerCase();
+    if (!k) continue;
+    if (k === 'text') { hasText = true; continue; }
+    if (!rest.includes(k)) rest.push(k);
+  }
+  return hasText ? ['text', ...rest] : rest;
+}
+
+/** Deduped lowercase output modalities, source order. */
+export function outputLine(m: ModelRow): string[] {
+  const out: string[] = [];
+  for (const s of m.meta.outputModalities || []) {
+    const k = s.trim().toLowerCase();
+    if (!k || out.includes(k)) continue;
+    out.push(k);
+  }
+  return out;
 }

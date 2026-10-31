@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { labBreakdown, largestMoves, modelsWithUsage, type LabSlice } from '../../src/lib/derive.ts';
+import { labBreakdown, largestMoves, modelsWithUsage, modalityOf, inputLine, outputLine, extraInputs, type LabSlice } from '../../src/lib/derive.ts';
 import type { DataFile, ModelRow } from '../../shared/types.ts';
 
 function row(key: string, lab: string, labName: string, week: number, changeWeek: number | null = 0, isNew = false): ModelRow {
@@ -86,5 +86,64 @@ describe('largestMoves', () => {
     const d = file(rows, 100);
     const out = largestMoves(d, 0.005, 6);
     expect(out.map((m) => m.key)).toEqual(['big-up', 'big-down', 'flat']);
+  });
+});
+
+describe('modalityOf', () => {
+  const withMods = (inn: string[], out: string[]): ModelRow => {
+    const m = row('m', 'meta', 'Meta', 10);
+    m.meta.inputModalities = inn;
+    m.meta.outputModalities = out;
+    return m;
+  };
+  it('labels by what the model generates, not what it accepts', () => {
+    // Multimodal-input chatbots are still Text models.
+    expect(modalityOf(withMods(['text', 'image', 'video', 'pdf', 'audio'], ['text']))).toBe('Text');
+    expect(modalityOf(withMods(['text', 'image'], ['text']))).toBe('Text');
+    expect(modalityOf(withMods(['text'], ['text']))).toBe('Text');
+  });
+  it('labels genuine generators', () => {
+    expect(modalityOf(withMods(['text', 'audio'], ['text', 'audio']))).toBe('Audio');
+    expect(modalityOf(withMods(['text'], ['image']))).toBe('Image');
+    expect(modalityOf(withMods(['text'], ['video']))).toBe('Video');
+  });
+  it('prioritizes generation over text and is case/whitespace tolerant', () => {
+    expect(modalityOf(withMods(['text'], ['text', 'image']))).toBe('Image');
+    expect(modalityOf(withMods(['text'], ['TEXT']))).toBe('Text');
+    expect(modalityOf(withMods(['text'], [' text ']))).toBe('Text');
+    expect(modalityOf(withMods(['text'], ['', '  ']))).toBeNull();
+  });
+  it('returns null (omit the label) when output is unknown', () => {
+    expect(modalityOf(withMods([], []))).toBeNull();
+    expect(modalityOf(withMods(['text'], []))).toBeNull();
+  });
+});
+
+describe('inputLine / extraInputs', () => {
+  it('dedupes with text first and surfaces non-text inputs', () => {
+    const m = row('m', 'meta', 'Meta', 10);
+    m.meta.inputModalities = ['text', 'image', 'video', 'pdf', 'audio', 'image'];
+    expect(inputLine(m)).toEqual(['text', 'image', 'video', 'pdf', 'audio']);
+    expect(extraInputs(m)).toEqual(['image', 'video', 'pdf', 'audio']);
+    const t = row('t', 'a', 'A', 10);
+    t.meta.inputModalities = ['text'];
+    expect(inputLine(t)).toEqual(['text']);
+    expect(extraInputs(t)).toEqual([]);
+  });
+  it('handles missing text, case variants, and blanks', () => {
+    const m = row('m', 'meta', 'Meta', 10);
+    m.meta.inputModalities = ['Image', '', '  ', 'audio', 'image'];
+    expect(inputLine(m)).toEqual(['image', 'audio']);
+    expect(extraInputs(m)).toEqual(['image', 'audio']);
+  });
+});
+
+describe('outputLine', () => {
+  it('dedupes in source order, lowercased, blanks dropped', () => {
+    const m = row('m', 'meta', 'Meta', 10);
+    m.meta.outputModalities = ['text', 'Audio', 'text', ''];
+    expect(outputLine(m)).toEqual(['text', 'audio']);
+    const e = row('e', 'a', 'A', 10);
+    expect(outputLine(e)).toEqual([]);
   });
 });

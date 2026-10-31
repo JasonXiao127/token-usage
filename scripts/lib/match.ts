@@ -27,7 +27,8 @@ const VARIANT_GROUPS: Array<{ lab: string; bases: string[]; name?: string }> = [
   { lab: 'deepseek', bases: ['deepseek-v4.1-flash', 'deepseek-v4p1-flash'], name: 'DeepSeek V4.1 Flash' },
 ];
 
-function groupKeyFor(lab: string, baseNorm: string): string {
+/** Canonical group key for an OpenCode lab + model base. Exported for reuse by the collector (variant paths must stay in sync with VARIANT_GROUPS). */
+export function groupKeyFor(lab: string, baseNorm: string): string {
   const labN = normalize(lab);
   for (const g of VARIANT_GROUPS) {
     if (normalize(g.lab) !== labN) continue;
@@ -153,11 +154,14 @@ export function matchOrBase(
     if (groups.has(gkey)) return { key: gkey, type: 'alias' };
   }
 
-  // 2. exact normalized provider/model
-  const exactKey = `${prov}/${baseN}`;
+  // 2. exact normalized provider/model. provKey is the normalized key
+  // namespace (alias values like 'bytedance-seed' keep dashes, but group
+  // keys are built with normalize(), so compare normalized).
+  const provKey = normalize(prov);
+  const exactKey = `${provKey}/${baseN}`;
   if (groups.has(exactKey)) return { key: exactKey, type: 'exact' };
   // try with slug normalization
-  const slugKey = `${prov}/${normalize(slugN)}`;
+  const slugKey = `${provKey}/${normalize(slugN)}`;
   if (groups.has(slugKey)) return { key: slugKey, type: 'exact' };
 
   // 3. version-stripped base match + date-aware selection among group candidates
