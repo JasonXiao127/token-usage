@@ -31,16 +31,6 @@ export interface OcLab {
   daily: Array<{ date: string; tokens: number; uniqueUsers: number; sessions: number; costUsd: number }>;
 }
 
-export interface OcUsageRow {
-  lab: string; // page lab segment
-  model: string; // usage model key
-  provider: string;
-  author: string;
-  tokens: number;
-  share: number;
-  slug: string;
-}
-
 export interface OcDetail {
   page: string;
   updatedAt: string;
@@ -114,57 +104,6 @@ export async function fetchLabs(labIds: string[]): Promise<{ labs: Record<string
     }
   });
   return { labs, failures };
-}
-
-/** Parse the authoritative per-model usage array embedded in a lab HTML page. */
-export function parseLabUsageHtml(html: string): { rows: OcUsageRow[]; modelPaths: Record<string, string> } {
-  const marker = '],models:$R[';
-  const start = html.indexOf(marker);
-  const mpIdx = html.indexOf('modelPaths:', start >= 0 ? start : 0);
-  if (start < 0 || mpIdx < 0) throw new Error('lab usage payload not found');
-  const seg = html.slice(start + 2, mpIdx);
-  const rows: OcUsageRow[] = [];
-  const re = /\{model:"([^"]*)",provider:"([^"]*)",author:"([^"]*)",tokens:([0-9.eE+-]+),share:([0-9.eE+-]+),slug:"([^"]*)"\}/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(seg))) {
-    rows.push({ model: m[1]!, provider: m[2]!, author: m[3]!, tokens: Number(m[4]), share: Number(m[5]), slug: m[6]!, lab: '' });
-  }
-  // modelPaths map: {"google/gemini-4-argon":"/data/google/gemini-4-argon",...}
-  const modelPaths: Record<string, string> = {};
-  const mpStart = html.indexOf('modelPaths:$R[');
-  const mpSeg = html.slice(mpStart, mpStart + 200000);
-  const brace = mpSeg.indexOf('{');
-  if (brace >= 0) {
-    let depth = 0; let end = -1;
-    for (let i = brace; i < mpSeg.length; i++) {
-      const c = mpSeg[i];
-      if (c === '{') depth++;
-      else if (c === '}') { depth--; if (depth === 0) { end = i; break; } }
-    }
-    if (end > 0) {
-      const obj = mpSeg.slice(brace, end + 1);
-      const kre = /"([^"]+)":"([^"]+)"/g;
-      let km: RegExpExecArray | null;
-      while ((km = kre.exec(obj))) modelPaths[km[1]!] = km[2]!;
-    }
-  }
-  return { rows, modelPaths };
-}
-
-export async function fetchLabUsageHtml(labIds: string[]): Promise<{ usage: Record<string, { rows: OcUsageRow[]; modelPaths: Record<string, string> }>; failures: Array<{ lab: string; err: string }> }> {
-  const usage: Record<string, { rows: OcUsageRow[]; modelPaths: Record<string, string> }> = {};
-  const failures: Array<{ lab: string; err: string }> = [];
-  await mapPool(labIds, 6, async (lab) => {
-    try {
-      const html = await fetchText(`${OC}/data/${lab}`);
-      const parsed = parseLabUsageHtml(html);
-      for (const r of parsed.rows) r.lab = lab;
-      usage[lab] = parsed;
-    } catch (e) {
-      failures.push({ lab, err: e instanceof Error ? e.message : String(e) });
-    }
-  });
-  return { usage, failures };
 }
 
 export async function fetchDetails(slugs: string[]): Promise<{ details: Record<string, OcDetail>; failures: Array<{ slug: string; err: string }> }> {

@@ -1,11 +1,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fetchIndex, fetchLabs, fetchLabList, fetchLabUsageHtml, fetchDetails, type OcLab, type OcDetail } from './lib/opencode.ts';
+import { fetchIndex, fetchLabs, fetchLabList, fetchDetails, type OcLab, type OcDetail } from './lib/opencode.ts';
 import { fetchCatalog, fetchRankings, rankDate, rankTokensExclByok, type OrCatalogModel, type OrRankRow } from './lib/openrouter.ts';
 import { buildGroups, groupKeyFor, matchOrBase, type CatalogEntry, type OrBase } from './lib/match.ts';
 import { prettyLabName, catalogArchFor } from './lib/labs.ts';
 import { combinedUsage } from './lib/combined.ts';
 import { normalize, normalizeSlug, splitId, stripVersion, PROVIDER_ALIAS } from './lib/aliases.ts';
+import { buildHistoryForRun, buildOcBackfill, writeHistoryFiles, rebuildHistoryIndex, historyDirBytes } from './lib/history.ts';
 import type { DataFile, ModelRow, DailyPoint } from '../shared/types.ts';
 
 const OUT = 'public/data/usage.json';
@@ -102,24 +103,11 @@ async function main() {
   if (labFail.length) warnings.push(`lab JSON failures: ${labFail.map((f) => f.lab).join(', ')}`);
   console.log(`lab JSON ok: ${Object.keys(labs).length}, fail: ${labFail.length}`);
 
-  // labs with usage
-  const labsWithUsage = Object.entries(labs).filter(([, d]) => (d.usage?.tokens ?? 0) > 0).map(([k]) => k);
-  console.log(`labs with usage: ${labsWithUsage.length}`);
-  const { usage: labUsage, failures: htmlFail } = await fetchLabUsageHtml(labsWithUsage);
-  if (htmlFail.length) warnings.push(`lab HTML failures: ${htmlFail.map((f) => f.lab).join(', ')}`);
-  console.log(`lab HTML ok: ${Object.keys(labUsage).length}`);
-
-  // validate lab sums
-  let parsedUsageRows = 0;
-  for (const [lab, u] of Object.entries(labUsage)) {
-    const d = labs[lab]!;
-    const sum = u.rows.reduce((s, r) => s + r.tokens, 0);
-    const total = d.usage!.tokens;
-    const diff = Math.abs(sum - total) / Math.max(1, total);
-    if (diff > 0.001) warnings.push(`${lab}: usage HTML sum ${(sum / 1e12).toFixed(2)}T != lab total ${(total / 1e12).toFixed(2)}T (diff ${(diff * 100).toFixed(2)}%)`);
-    parsedUsageRows += u.rows.length;
-  }
-  console.log(`usage rows: ${parsedUsageRows}`);
+  // JSON-only OpenCode sourcing: lab JSON + leaderboard + model detail JSON.
+  // The lab HTML usage arrays are no longer fetched (automated extraction).
+  // Hidden top models still resolve via leaderboard/detail pages; uncovered
+  // long-tail hidden rows are omitted from two-month totals by design.
+  warnings.push('OpenCode source is JSON-only (lab + leaderboard + detail JSON); lab HTML usage arrays are not fetched');
 
   // Build catalog entries
   const catalog: CatalogEntry[] = [];
@@ -140,40 +128,14 @@ async function main() {
   const catalogById = new Map<string, CatalogEntry>();
   for (const c of catalog) catalogById.set(normalize(c.id), c);
 
-  // Hidden usage rows (not in catalog by normalized provider/model)
-  const catIds = new Set(catalog.map((c) => normalize(c.id)));
   const catalogBases = new Set(catalog.map((c) => { const [p, s] = splitId(c.id); return `${normalize(p)}/${normalize(s)}`; }));
-  const hidden = [];
-  const usageRowList: Array<{ lab: string; labName: string; model: string; provider: string; slug: string; tokens: number; share: number; excluded: boolean }> = [];
-  for (const [lab, u] of Object.entries(labUsage)) {
-    const labName = labs[lab]?.lab?.name || lab;
-    for (const r of u.rows) {
-      const excluded = isExcludedUsageModel(r.model);
-      const cleaned = cleanBase(lab, r.model, catalogBases);
-      const normId = normalize(`${lab}/${cleaned}`);
-      // resolve page slug: prefer modelPaths by catalog id or usage slug
-      const mp = u.modelPaths;
-      let pageSlug = `${lab}/${r.slug}`;
-      // find catalog-style key in modelPaths
-      for (const [k, v] of Object.entries(mp)) {
-        if (normalize(k) === normalize(`${r.provider}/${r.model}`) || normalize(k) === normId || normalize(v.replace('/data/', '')) === normalize(`${lab}/${r.slug}`)) {
-          pageSlug = (v as string).replace(/^\/data\//, '');
-          break;
-        }
-      }
-      usageRowList.push({ lab, labName, model: r.model, provider: r.provider, slug: pageSlug.split('/').slice(1).join('/') || r.slug, tokens: r.tokens, share: r.share, excluded });
-      if (!catIds.has(normId) && !catIds.has(normalize(`${r.provider}/${r.model}`))) {
-        hidden.push({ lab, labName, model: cleaned, provider: r.provider, slug: pageSlug.split('/').slice(1).join('/') || r.slug, tokens: r.tokens });
-      }
-    }
-  }
-  console.log(`hidden usage models: ${hidden.length}`);
 
-  const groups = buildGroups(catalog, hidden.map((h) => ({ ...h, model: h.model })));
+  const groups = buildGroups(catalog, []);
   // leaderboard-only models (e.g. unknown/iceman) have no lab page: seed groups.
   // groupKeyFor keeps variant spellings on their canonical group instead of
   // spawning duplicate zero-usage rows.
   for (const m of ((index.leaderboard.pastWeek as Array<{ model: string; name: string; lab: string; page: string; tokens: number }>) || [])) {
+    if (isExcludedUsageModel(m.model || '')) continue;
     const slug = m.page.replace('https://opencode.ai/data/', '');
     if (!slug || slug.split('/').length !== 2) continue;
     const [ll, ...rest] = slug.split('/');
@@ -191,25 +153,29 @@ async function main() {
   }
   console.log(`groups: ${groups.size}`);
 
-  // attach 2-month tokens from usage rows to groups
-  const twoMonthByGroup = new Map<string, number>();
-  for (const r of usageRowList) {
-    if (r.excluded) continue;
-    const cleaned = cleanBase(r.lab, r.model, catalogBases);
-    // single source of truth for variant grouping lives in match.ts
-    const key = groupKeyFor(normalize(r.lab), normalize(cleaned));
-    twoMonthByGroup.set(key, (twoMonthByGroup.get(key) || 0) + r.tokens);
-  }
-  for (const [key, g] of groups) {
-    g.twoMonthTokens = twoMonthByGroup.get(key) || 0;
+  // 2-month tokens from catalog sums; upgraded to detail sums where fetched.
+  const catalogTokensByGroup = new Map<string, number>();
+  for (const c of catalog) {
+    const tail = splitId(c.id)[1] || c.id;
+    if (isExcludedUsageModel(tail) || isExcludedUsageModel(c.id)) continue;
+    const [p, s] = splitId(c.id);
+    const key = groupKeyFor(normalize(c.lab || p), normalize(s));
+    catalogTokensByGroup.set(key, (catalogTokensByGroup.get(key) || 0) + (c.tokens || 0));
   }
 
-  // detail slugs: meaningful usage rows (non-excluded, tokens>1M) + top leaderboard
-  const meaningful = usageRowList.filter((r) => !r.excluded && r.tokens > 1_000_000);
-  const detailSlugs = [...new Set(meaningful.map((r) => `${r.lab}/${r.slug}`))];
-  // safety net: leaderboard pages
-  for (const m of (index.leaderboard.pastWeek as Array<{ page: string }>) || []) {
+  // detail slugs: catalog models with meaningful 2-month tokens + leaderboard
+  const detailSlugs = [...new Set(
+    catalog
+      .filter((c) => {
+        const tail = splitId(c.id)[1] || c.id;
+        return (c.tokens || 0) > 1_000_000 && !isExcludedUsageModel(tail) && !isExcludedUsageModel(c.id);
+      })
+      .map((c) => c.slug),
+  )];
+  // safety net: leaderboard pages (top hidden models live here)
+  for (const m of (index.leaderboard.pastWeek as Array<{ page: string; model?: string }>) || []) {
     const slug = m.page.replace('https://opencode.ai/data/', '');
+    if (isExcludedUsageModel((m as { model?: string }).model || slug)) continue;
     if (slug && !detailSlugs.includes(slug) && slug.split('/').length === 2) detailSlugs.push(slug);
   }
   console.log(`detail slugs: ${detailSlugs.length}`);
@@ -236,6 +202,22 @@ async function main() {
     if (!groups.has(key)) { warnings.push(`detail ${slug} (${mid}) -> no group ${key}`); continue; }
     if (!detailByGroup.has(key)) detailByGroup.set(key, []);
     detailByGroup.get(key)!.push(d);
+  }
+
+  // Two-month totals: catalog sums upgraded to detail sums where fetched.
+  // Detail usage.tokens is the authoritative per-model 2-month total; catalog
+  // tokens cover the rest. max() avoids double counting while still picking
+  // up hidden models that only exist in detail pages.
+  const twoMonthByGroup = new Map<string, number>();
+  const detailTokensByGroup = new Map<string, number>();
+  for (const [key, dets] of detailByGroup) {
+    detailTokensByGroup.set(key, dets.reduce((s, d) => s + (d.usage.tokens || 0), 0));
+  }
+  for (const [key, g] of groups) {
+    const cat = catalogTokensByGroup.get(key) || 0;
+    const det = detailTokensByGroup.get(key);
+    g.twoMonthTokens = det != null ? Math.max(cat, det) : cat;
+    twoMonthByGroup.set(key, g.twoMonthTokens);
   }
 
   // OpenRouter
@@ -694,9 +676,60 @@ async function main() {
   const tmp = OUT + '.tmp';
   await fs.writeFile(tmp, JSON.stringify(data));
   await fs.rename(tmp, OUT);
+
+  // History: immutable daily snapshots (one combined file when both sources
+  // cover the same UTC day, else one source-only file per source date),
+  // plus OC backfill from detail daily arrays. Existing files are never
+  // overwritten; index.json is rebuilt from disk.
+  const historyMatch = (() => {
+    let matchedDay = 0, ocOnlyDay = 0, orOnlyDay = 0, matchedOcDay = 0, matchedOrDay = 0;
+    for (const m of models) {
+      const oc = m.opencode?.tokens.day || 0;
+      const or = m.openrouter?.tokens.day || 0;
+      if (oc > 0 && or > 0) { matchedDay++; matchedOcDay += oc; matchedOrDay += or; }
+      else if (oc > 0) ocOnlyDay++;
+      else if (or > 0) orOnlyDay++;
+    }
+    return {
+      matched: matchedDay,
+      opencodeOnly: ocOnlyDay,
+      openrouterOnly: orOnlyDay,
+      opencodeCoverage: ocDay ? (matchedOcDay / ocDay) * 100 : null,
+      openrouterCoverage: orDayTotal ? (matchedOrDay / orDayTotal) * 100 : null,
+    };
+  })();
+  const historyFiles = buildHistoryForRun({
+    ocDate: windowEnd,
+    orDate: latestDay,
+    generatedAt: data.generatedAt,
+    opencodeAsOf: index.updatedAt,
+    openrouterAsOf: latestDay,
+    ocDayTotal: ocDay,
+    orDayTotal,
+    models,
+    match: historyMatch,
+  });
+  const backfill = buildOcBackfill(models, index.dailyTokens, {
+    generatedAt: data.generatedAt,
+    opencodeAsOf: index.updatedAt,
+    openrouterAsOf: latestDay,
+  }, new Set([windowEnd, latestDay]), ocEnd);
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  const due = [...historyFiles, ...backfill].filter(({ file }) => file.date < todayUtc);
+  if (due.length < historyFiles.length + backfill.length) {
+    warnings.push('history: skipped today/future UTC day(s); partial days are never archived');
+  }
+  const written = await writeHistoryFiles(due);
+  const { entries: historyEntries } = await rebuildHistoryIndex();
+  const histBytes = await historyDirBytes();
+  const newFiles = written.filter((w) => w.written);
+  console.log(`history: ${newFiles.length} new files, ${historyEntries} days indexed, ${(histBytes / 1048576).toFixed(1)}MB`);
+  if (histBytes > 500 * 1048576) errors.push(`history ${(histBytes / 1048576).toFixed(1)}MB exceeds 500MB budget`);
+  else if (histBytes > 200 * 1048576) warnings.push(`history ${(histBytes / 1048576).toFixed(1)}MB exceeds 200MB warning threshold`);
+
   await fs.mkdir(path.dirname(REPORT), { recursive: true });
   const topCombined = models.filter((m) => (m.combined.tokens.week || 0) > 0).slice(0, 8).map((m) => `- ${m.name} (${(m.combined.tokens.week! / 1e12).toFixed(1)}T, ${m.combined.share.week?.toFixed(1)}%)`);
-  await fs.writeFile(REPORT, `# Match report\n\n- Generated: ${data.generatedAt}\n- Window end: ${windowEnd}\n- Models: ${models.length} (matched ${matched.length}, OC-only ${ocOnly.length}, OR-only ${orOnly.length})\n- OR week coverage: ${coverage.toFixed(1)}%\n- Combined week: ${(combinedTotals.week / 1e12).toFixed(1)}T (OC ${((ocWeek / combinedTotals.week) * 100).toFixed(1)}% · OR ${((orWeekTotal / combinedTotals.week) * 100).toFixed(1)}%)\n- Errors: ${errors.length ? errors.join('; ') : 'none'}\n- Warnings: ${warnings.length}\n${warnings.map((w) => `  - ${w}`).join('\n')}\n\n## Top combined (week)\n${topCombined.join('\n')}\n`);
+  await fs.writeFile(REPORT, `# Match report\n\n- Generated: ${data.generatedAt}\n- Window end: ${windowEnd} (OC ${windowEnd}, OR day ${latestDay}, OR week ${latestWeek})\n- Models: ${models.length} (matched ${matched.length}, OC-only ${ocOnly.length}, OR-only ${orOnly.length})\n- OR week coverage: ${coverage.toFixed(1)}%\n- Combined week: ${(combinedTotals.week / 1e12).toFixed(1)}T (OC ${((ocWeek / combinedTotals.week) * 100).toFixed(1)}% · OR ${((orWeekTotal / combinedTotals.week) * 100).toFixed(1)}%)\n- OpenCode source: JSON-only (lab + leaderboard + detail JSON, no HTML)\n- History: ${newFiles.length} new files, ${historyEntries} days indexed, ${(histBytes / 1048576).toFixed(1)}MB\n- Errors: ${errors.length ? errors.join('; ') : 'none'}\n- Warnings: ${warnings.length}\n${warnings.map((w) => `  - ${w}`).join('\n')}\n\n## Top combined (week)\n${topCombined.join('\n')}\n`);
   console.log(`wrote ${OUT} (${models.length} models) in ${((Date.now() - t0) / 1000).toFixed(0)}s`);
   console.log(`coverage OR week ${coverage.toFixed(1)}%`);
   if (errors.length) {

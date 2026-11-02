@@ -2,10 +2,11 @@ node_modules/
 dist/
 reports/
 !reports/.gitkeep
-public/data/
-!public/data/.gitkeep
-data/
-!data/.gitkeep
+/public/data/*
+!/public/data/.gitkeep
+!/public/data/history/
+/data/*
+!/data/.gitkeep
 *.local
 .DS_Store
 tsconfig.tsbuildinfo

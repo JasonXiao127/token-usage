@@ -71,6 +71,7 @@ function Rail({ generatedAt, windowEnd, ocUpdated, orAsOf, ocCoverage, orCoverag
         <div>
           <h2 className="t-label text-(--muted)">Data</h2>
           <p className="mt-0.5"><a className="underline-offset-2 hover:underline" href={`${import.meta.env.BASE_URL}data/usage.json`} download>Download JSON</a></p>
+          <p className="mt-0.5"><a className="underline-offset-2 hover:underline" href={`${import.meta.env.BASE_URL}data/history/index.json`}>Daily history</a></p>
           <p className="mt-0.5"><a className="underline-offset-2 hover:underline" href="https://github.com/JasonXiao127/token-usage">GitHub</a></p>
           <p className="num mt-1 text-(--muted)" title={generatedAt}>fetched {fmtDateUTC(generatedAt)}</p>
         </div>

@@ -28,9 +28,10 @@ export default function Methodology({ data }: { data: DataFile }) {
         <div>
           <h3 className="t-meta font-semibold text-(--ink)">Sources</h3>
           <ul className="mt-1 list-disc pl-5">
-            <li>OpenCode: <a className="text-(--oc) underline-offset-2 hover:underline" href="https://opencode.ai/data/">opencode.ai/data</a> — hourly index, lab pages, model detail JSON. Updated {data.window.opencodeUpdatedAt}.</li>
-            <li>OpenRouter: <a className="text-(--or) underline-offset-2 hover:underline" href="https://openrouter.ai/rankings">openrouter.ai/rankings</a> public rankings endpoint (day/week/month, excl. BYOK). Through {data.window.openrouterAsOf}.</li>
+            <li>OpenCode: <a className="text-(--oc) underline-offset-2 hover:underline" href="https://opencode.ai/data/">opencode.ai/data</a> — lab, leaderboard, and model detail JSON only (no HTML scraping). Updated {data.window.opencodeUpdatedAt}.</li>
+            <li>OpenRouter: <a className="text-(--or) underline-offset-2 hover:underline" href="https://openrouter.ai/rankings">openrouter.ai/rankings</a> public rankings endpoint (day/week/month, excl. BYOK). Through {data.window.openrouterAsOf}. The compliant long-term path is the official Data API (requires a key); the frontend endpoint is kept for its breakdown fields.</li>
             <li>Model catalog and prices from OpenRouter <span className="num">/api/v1/models</span>.</li>
+            <li>Daily snapshots: <a className="underline-offset-2 hover:underline" href={`${import.meta.env.BASE_URL}data/history/index.json`}>data/history</a> — one immutable file per UTC day, never deleted. OpenCode backfilled ~56 days from detail pages; OpenRouter history starts at the first archive run.</li>
           </ul>
           <h3 className="t-meta mt-3 font-semibold text-(--ink)">Matching</h3>
           <p className="mt-1">{m.matchedGroups} matched groups · {m.opencodeOnlyGroups} OpenCode-only · {m.openrouterOnlyModels} OpenRouter-only. OpenRouter token coverage {m.openrouterTokenCoverage.week?.toFixed(1)}% (7d). OpenCode coverage {m.opencodeTokenCoverage.week?.toFixed(1)}%.</p>

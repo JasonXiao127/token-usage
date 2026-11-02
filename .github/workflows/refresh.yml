@@ -30,6 +30,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run test -- --run
       - run: npm run collect
+      - run: npm run history:verify
       - name: Summary
         if: always()
         run: |
@@ -37,6 +38,7 @@ jobs:
           cat reports/match-report.md >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Window: $(node -e "console.log(require('./public/data/usage.json').window.end)")" >> $GITHUB_STEP_SUMMARY
+          echo "History: $(node -e "const i=require('./public/data/history/index.json');console.log(i.days.length+' days, last '+ (i.days.at(-1)||{}).date)")" >> $GITHUB_STEP_SUMMARY
       - name: Compute base path
         id: base
         run: |
@@ -48,18 +50,13 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
-      - name: Daily heartbeat commit
+      - name: Commit history
         if: github.event_name == 'schedule' && github.ref == 'refs/heads/main'
-        continue-on-error: true
         run: |
-          TODAY=$(date -u +%F)
-          if git log --since="24 hours" --oneline -- data/last-refresh.json | grep -q .; then echo "heartbeat already committed"; exit 0; fi
-          mkdir -p data
-          node -e "const fs=require('fs');fs.writeFileSync('data/last-refresh.json',JSON.stringify({date:'$TODAY',generatedAt:new Date().toISOString(),sourceAsOf:require('./public/data/usage.json').window.end},null,2)+'\n')"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/last-refresh.json
-          git commit -m "chore: daily refresh heartbeat [skip ci]" || exit 0
+          git add public/data/history
+          git diff --cached --quiet || git commit -m "chore: archive daily usage history [skip ci]"
           git push
 
   deploy:

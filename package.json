@@ -12,6 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "collect": "tsx scripts/collect.ts",
+    "history:verify": "tsx scripts/history.ts verify",
+    "history:rebuild": "tsx scripts/history.ts rebuild",
     "report": "tsx scripts/report.ts"
   },
   "dependencies": {
